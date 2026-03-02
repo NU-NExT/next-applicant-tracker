@@ -33,7 +33,12 @@ export function AdminDashboardPage() {
           <section className="border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(220px,34vh,360px)]">
             <h2 className="border-b border-[#b5b5b5] pb-1 text-3xl text-[#2d2d2d]">Quick Actions</h2>
             <div className="mt-4 flex flex-col gap-3">
-              <button className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white">Create New Job Post</button>
+              <a
+                href="/build-application"
+                className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
+              >
+                Create New Job Post
+              </a>
               <button className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white">View Fall 2025 Applicant Stats</button>
               <button className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white">Edit a Job Post</button>
               <button className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white">Review Applications for [JOB 1]</button>

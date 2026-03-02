@@ -72,6 +72,7 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
       - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/data}
+      - WATCHFILES_FORCE_POLLING=true
     volumes:
       - ./backend:/app
     depends_on:
@@ -93,12 +94,14 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=100
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend-dev
-    command: npm run dev -- --host 0.0.0.0 --port 3000
+    command: sh -c "[ -d node_modules/@tailwindcss/vite ] || npm install; npm run dev -- --host 0.0.0.0 --port 3000"
 
   backend:
     build:

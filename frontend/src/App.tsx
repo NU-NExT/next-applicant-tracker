@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { ApplicantDashboardPage } from "./pages/applicant-dashboard";
+import { BuildApplicationPage } from "./pages/build-application";
 import { DashboardPage } from "./pages/dashboard";
 import { JobBoardPage } from "./pages/job-board";
 import { LoginPage } from "./pages/login";
@@ -39,6 +40,10 @@ export function App() {
     return <ApplicantDashboardPage />;
   }
 
+  if (path === "/build-application") {
+    return <BuildApplicationPage />;
+  }
+
   return (
     <main className="min-h-screen bg-[#f4f5f6] p-8">
       <h1 className="text-2xl font-semibold">Route not found</h1>
@@ -58,6 +63,9 @@ export function App() {
         </li>
         <li>
           <a href="/applicant-dashboard">/applicant-dashboard</a>
+        </li>
+        <li>
+          <a href="/build-application">/build-application</a>
         </li>
       </ul>
     </main>

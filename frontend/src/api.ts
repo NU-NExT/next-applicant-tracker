@@ -20,6 +20,21 @@ export type JobDataRecord = {
   description: string;
 };
 
+export type JobListingRecord = {
+  id: number;
+  date_created: string;
+  date_end: string;
+  job: string;
+  description: string;
+};
+
+export type JobListingCreatePayload = {
+  date_created: string;
+  date_end: string;
+  job: string;
+  description: string;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export const apiClient = axios.create({
@@ -31,5 +46,15 @@ export const apiClient = axios.create({
 
 export async function getJobData(): Promise<JobDataRecord[]> {
   const response = await apiClient.get<JobDataRecord[]>("/api/job-data");
+  return response.data;
+}
+
+export async function getJobListings(): Promise<JobListingRecord[]> {
+  const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
+  return response.data;
+}
+
+export async function createJobListing(payload: JobListingCreatePayload): Promise<JobListingRecord> {
+  const response = await apiClient.post<JobListingRecord>("/api/job-listings", payload);
   return response.data;
 }

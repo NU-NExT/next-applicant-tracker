@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Header } from "./components/header";
-import { getJobData, type JobDataRecord } from "./api";
+import { Header } from "../components/header";
+import { getJobData, type JobDataRecord } from "../api";
 
 const fallbackJobs = [
   {
@@ -49,13 +49,13 @@ export function JobBoardPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <section className="grid min-h-[330px] grid-cols-[35%_65%] bg-[#17191b] pt-16 text-white">
-        <aside className="flex flex-col justify-center gap-3.5 px-12 py-10">
-          <img src="/img/NExT Logo Lockup.svg" alt="NExT logo" className="h-[200px] w-auto object-contain" />
+      <section className="grid min-h-[330px] grid-cols-[35%_65%] bg-black pt-16 text-white items-center">
+        <aside className="flex flex-col items-start justify-left gap-3.5 px-12">
+          <img src="/img/NExT Logo Lockup.svg" alt="NExT logo" className="h-[300px] w-[450px] object-contain" />
           <h2 className="text-[42px] leading-tight">Join the Team</h2>
           <a
             href="#open-roles"
-            className="mt-1 inline-flex h-[40px] w-[108px] items-center justify-center rounded-[6px] bg-[#1f6f5f] text-sm"
+            className="mt-1 inline-flex h-[40px] w-[108px] items-center justify-center rounded-sm bg-[#1f6f5f] text-sm"
           >
             View Jobs
           </a>

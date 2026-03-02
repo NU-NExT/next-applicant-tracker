@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db import Base, engine
 from app.api.routes.applications import router as applications_router
 from app.api.routes.job_data import router as job_data_router
+from app.api.routes.job_listings import router as job_listings_router
 
 app = FastAPI(title="NExT Applicant Tracker API", version="0.1.0")
 
@@ -28,3 +29,4 @@ def health() -> dict[str, str]:
 
 app.include_router(applications_router)
 app.include_router(job_data_router)
+app.include_router(job_listings_router)

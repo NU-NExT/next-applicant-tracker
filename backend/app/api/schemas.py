@@ -30,6 +30,31 @@ class JobMetadataRead(JobMetadataBase):
 
     model_config = {"from_attributes": True}
 
+
+class JobListingBase(BaseModel):
+    date_created: datetime
+    date_end: datetime
+    job: str
+    description: str
+
+
+class JobListingCreate(JobListingBase):
+    pass
+
+
+class JobListingUpdate(BaseModel):
+    date_created: datetime | None = None
+    date_end: datetime | None = None
+    job: str | None = None
+    description: str | None = None
+
+
+class JobListingRead(JobListingBase):
+    id: int
+
+    model_config = {"from_attributes": True}
+
+
 class UserBase(BaseModel):
     email: str
     first_name: str

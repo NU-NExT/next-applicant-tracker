@@ -17,6 +17,17 @@ class JobMetadata(Base):
     pay: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String(2048), nullable=False)
 
+
+class JobListing(Base):
+    __tablename__ = "job_listings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    date_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    job: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
 

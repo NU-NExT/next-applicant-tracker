@@ -4,18 +4,12 @@ import { getJobData, type JobDataRecord } from "../api";
 
 const fallbackJobs = [
   {
+    jobId: "1",
     role: "Job 1",
     semester: "Semester I Year",
     published: "Published XX/XX/XXXX",
     description:
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-  },
-  {
-    role: "Job 2",
-    semester: "Semester II Year",
-    published: "Published XX/XX/XXXX",
-    description:
-      "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
   },
 ];
 
@@ -39,6 +33,7 @@ export function JobBoardPage() {
     }
 
     return apiJobs.map((job) => ({
+      jobId: String(job.id),
       role: job.role,
       semester: job.semester,
       published: `Published ${new Date(job.release_date).toLocaleDateString()}`,
@@ -76,9 +71,11 @@ export function JobBoardPage() {
 
         <ul className="list-none p-0">
           {jobs.map((job) => (
-            <li key={job.role} className="border-b border-[#8e8e8e] py-6">
+            <li key={`${job.jobId}-${job.role}`} className="border-b border-[#8e8e8e] py-6">
               <div className="flex items-start justify-between">
-                <h2 className="text-[40px] font-semibold text-[#1f6f5f]">{job.role}</h2>
+                <a href={`/jobs/${job.jobId}/login`} className="text-[40px] font-semibold text-[#1f6f5f] no-underline">
+                  {job.role}
+                </a>
                 <div className="text-right">
                   <p className="text-[40px] leading-none font-semibold text-[#1f6f5f]">{job.semester}</p>
                   <p className="mt-1 text-lg text-[#7f7f7f]">{job.published}</p>

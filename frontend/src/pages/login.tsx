@@ -1,11 +1,45 @@
+import { useMemo, useState } from "react";
+
 import { Header } from "../components/header";
 
-export function LoginPage() {
+type LoginPageProps = {
+  jobId?: string;
+  adminMode?: boolean;
+};
+
+export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
+  const [hasToken, setHasToken] = useState<boolean>(() => Boolean(localStorage.getItem("mock_auth_token")));
+  const nextApplicantPath = useMemo(() => (jobId ? `/jobs/${jobId}` : "/applicant-dashboard"), [jobId]);
+
+  const useExistingAccount = () => {
+    window.location.href = adminMode ? "/admin-dashboard" : nextApplicantPath;
+  };
+
+  const setMockToken = () => {
+    localStorage.setItem("mock_auth_token", "mock-token");
+    setHasToken(true);
+  };
+
   return (
     <div className="min-h-screen bg-[#f4f5f6] text-[#222]">
       <Header />
 
       <main className="grid place-items-center px-16 py-20 pt-24">
+        {hasToken ? (
+          <section className="mb-4 w-full max-w-[450px] rounded border border-[#b6d7cd] bg-[#e8f7f2] p-3">
+            <p className="text-sm text-[#1f463d]">
+              Existing account token detected. Use existing account for this session?
+            </p>
+            <button
+              type="button"
+              onClick={useExistingAccount}
+              className="mt-2 rounded bg-[#1f6f5f] px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Use Existing Account
+            </button>
+          </section>
+        ) : null}
+
         <section className="w-full max-w-[450px] h-full rounded-sms border border-[#e3e3e3] bg-white p-[22px]">
           <label className="mb-3 block text-[13px] text-[#444]">
             Email
@@ -23,12 +57,20 @@ export function LoginPage() {
             />
           </label>
 
-          <button
-            type="button"
-            className="mt-2 w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-sm font-semibold text-white"
+          <a
+            href={nextApplicantPath}
+            onClick={setMockToken}
+            className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white"
           >
-            Sign In
-          </button>
+            Sign In as Applicant
+          </a>
+          <a
+            href="/admin-dashboard"
+            onClick={setMockToken}
+            className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white"
+          >
+            Sign In as Admin
+          </a>
 
           <p className="mt-3 text-center text-[13px] text-[#333]">
             Don&apos;t have an account yet?{" "}

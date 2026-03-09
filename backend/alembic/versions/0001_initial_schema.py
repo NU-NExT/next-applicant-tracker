@@ -42,6 +42,17 @@ def upgrade() -> None:
     op.create_index(op.f("ix_job_listings_id"), "job_listings", ["id"], unique=False)
 
     op.create_table(
+        "questionnaire_questions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("job_listing_id", sa.Integer(), nullable=False),
+        sa.Column("prompt", sa.String(length=512), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["job_listing_id"], ["job_listings.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_questionnaire_questions_id"), "questionnaire_questions", ["id"], unique=False)
+
+    op.create_table(
         "users",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("email", sa.String(length=128), nullable=False),
@@ -70,13 +81,33 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_applications_id"), "applications", ["id"], unique=False)
 
+    op.create_table(
+        "application_submissions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("job_listing_id", sa.Integer(), nullable=False),
+        sa.Column("applicant_name", sa.String(length=128), nullable=False),
+        sa.Column("applicant_email", sa.String(length=128), nullable=False),
+        sa.Column("status", sa.String(length=64), nullable=False),
+        sa.Column("responses_json", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["job_listing_id"], ["job_listings.id"]),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_application_submissions_id"), "application_submissions", ["id"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_application_submissions_id"), table_name="application_submissions")
+    op.drop_table("application_submissions")
+
     op.drop_index(op.f("ix_applications_id"), table_name="applications")
     op.drop_table("applications")
 
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_table("users")
+
+    op.drop_index(op.f("ix_questionnaire_questions_id"), table_name="questionnaire_questions")
+    op.drop_table("questionnaire_questions")
 
     op.drop_index(op.f("ix_job_listings_id"), table_name="job_listings")
     op.drop_table("job_listings")

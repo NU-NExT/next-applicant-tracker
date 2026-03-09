@@ -28,6 +28,15 @@ class JobListing(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class QuestionnaireQuestion(Base):
+    __tablename__ = "questionnaire_questions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    job_listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_listings.id"), nullable=False)
+    prompt: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -38,15 +47,14 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(128), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-class Application(Base):
-    __tablename__ = "applications"
+
+class ApplicationSubmission(Base):
+    __tablename__ = "application_submissions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    job_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_metadata.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(String(2048), nullable=False)
-    resume_key: Mapped[str] = mapped_column(String(128), nullable=True)
-    transcript_key: Mapped[str] = mapped_column(String(128), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now)
+    job_listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_listings.id"), nullable=False)
+    applicant_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    applicant_email: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="submitted")
+    responses_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

@@ -74,18 +74,26 @@ export function Header() {
       <nav aria-label="Main navigation" className="mx-auto flex h-16 items-center justify-between px-4">
         <a href="/" className="flex items-center gap-3 no-underline">
           <img src="/img/NExT Logo Solo.svg" alt="NExT Consulting Logo" className="h-[50px] w-auto object-contain" />
-          <span className="text-[1.4rem] font-bold text-white">NExT Consulting</span>
+          <span className="text-[1.4rem] font-bold text-white">NExT Consulting | Apply</span>
         </a>
 
-        <button
-          type="button"
-          className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
-          aria-label="Toggle Menu"
-          aria-expanded={open}
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/login?admin=1"
+            className="rounded border border-white/70 px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"
+          >
+            Login
+          </a>
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
+            aria-label="Toggle Menu"
+            aria-expanded={open}
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </nav>
 
       <div

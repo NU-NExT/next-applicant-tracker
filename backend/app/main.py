@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import Base, engine
-from app.api.routes.applications import router as applications_router
+from app.api.routes.admin_dashboard import router as admin_dashboard_router
 from app.api.routes.job_data import router as job_data_router
 from app.api.routes.job_listings import router as job_listings_router
+from app.api.routes.repository import router as repository_router
+from app.api.routes.repository_requests import router as repository_requests_router
 
 app = FastAPI(title="NExT Applicant Tracker API", version="0.1.0")
 
@@ -27,6 +29,8 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(applications_router)
 app.include_router(job_data_router)
 app.include_router(job_listings_router)
+app.include_router(repository_router)
+app.include_router(repository_requests_router)
+app.include_router(admin_dashboard_router)

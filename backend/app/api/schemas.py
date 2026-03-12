@@ -32,14 +32,25 @@ class JobMetadataRead(JobMetadataBase):
 
 
 class JobListingBase(BaseModel):
+    position_title: str | None = None
+    position_code: str | None = None
     date_end: datetime
-    job: str
+    job: str | None = None
     description: str
+    required_skills: str | None = None
+    target_start_date: datetime | None = None
+    is_active: bool = True
+    candidate_intake_url: str | None = None
 
 
 class QuestionnaireQuestionBase(BaseModel):
     prompt: str
     sort_order: int = 0
+    question_type: str = "free_text"
+    character_limit: int | None = None
+    question_bank_key: str | None = None
+    question_config_json: dict | None = None
+    is_global: bool = False
 
 
 class QuestionnaireQuestionCreate(QuestionnaireQuestionBase):
@@ -75,11 +86,14 @@ class JobListingRead(JobListingBase):
 
 
 class ApplicationSubmissionBase(BaseModel):
-    job_listing_id: int
+    job_listing_id: int | None = None
+    position_code: str | None = None
     applicant_name: str
     applicant_email: str
     status: str = "submitted"
     responses_json: str
+    profile_snapshot_json: dict = Field(default_factory=dict)
+    resume_s3_key: str | None = None
 
 
 class ApplicationSubmissionCreate(ApplicationSubmissionBase):
@@ -93,6 +107,79 @@ class ApplicationSubmissionRead(ApplicationSubmissionBase):
     model_config = {"from_attributes": True}
 
 
+class ApplicationSubmissionStatusUpdate(BaseModel):
+    status: str
+
+
+class ApplicationReviewScoreCreate(BaseModel):
+    score: int
+
+
+class ApplicationReviewScoreRead(BaseModel):
+    id: int
+    application_submission_id: int
+    reviewer_user_id: int
+    reviewer_name: str
+    score: int
+    created_at: datetime
+
+
+class ApplicationReviewCommentCreate(BaseModel):
+    comment: str
+
+
+class ApplicationReviewCommentRead(BaseModel):
+    id: int
+    application_submission_id: int
+    reviewer_user_id: int
+    reviewer_name: str
+    comment: str
+    created_at: datetime
+
+
+class CandidateReviewSearchRow(BaseModel):
+    submission_id: int
+    candidate_name: str
+    candidate_email: str
+    major: str | None = None
+    graduation_date: str | None = None
+    coop_number: str | None = None
+    year_grade_level: str | None = None
+    college: str | None = None
+    position_applied_for: str
+    cycle: str | None = None
+    application_status: str
+
+
+class CandidateReviewDetail(BaseModel):
+    submission: ApplicationSubmissionRead
+    position_title: str
+    position_code: str
+    global_profile_fields: dict = Field(default_factory=dict)
+    position_question_answers: list[dict] = Field(default_factory=list)
+    resume_view_url: str | None = None
+    scores: list[ApplicationReviewScoreRead] = Field(default_factory=list)
+    comments: list[ApplicationReviewCommentRead] = Field(default_factory=list)
+
+
+class UserProfileRead(BaseModel):
+    email: str
+    first_name: str
+    last_name: str
+    is_admin: bool
+    is_active: bool
+    consented_at: datetime | None = None
+    user_metadata: dict = Field(default_factory=dict)
+
+    model_config = {"from_attributes": True}
+
+
+class UserProfileUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    user_metadata: dict = Field(default_factory=dict)
+
+
 class DemographicsSummary(BaseModel):
     total_submissions: int
     applicants_with_edu_email: int
@@ -104,6 +191,7 @@ class UserBase(BaseModel):
     first_name: str
     last_name: str
     is_admin: bool
+    user_metadata: dict = Field(default_factory=dict)
 
 class UserCreate(UserBase):
     password: str
@@ -113,8 +201,33 @@ class UserUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     is_admin: bool | None = None
+    user_metadata: dict | None = None
 
 class UserRead(UserBase):
     id: int
+
+    model_config = {"from_attributes": True}
+
+
+class FieldOptionBase(BaseModel):
+    category: str
+    value: str
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class FieldOptionCreate(FieldOptionBase):
+    pass
+
+
+class FieldOptionUpdate(BaseModel):
+    value: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class FieldOptionRead(FieldOptionBase):
+    id: int
+    created_at: datetime
 
     model_config = {"from_attributes": True}

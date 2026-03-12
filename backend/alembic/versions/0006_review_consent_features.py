@@ -27,6 +27,11 @@ def upgrade() -> None:
         sa.Column("consented_at", sa.DateTime(timezone=True), nullable=True),
     )
 
+    # Recover from partially-initialized environments where tables were created
+    # by an interrupted previous migration attempt.
+    op.execute(sa.text("DROP TABLE IF EXISTS application_review_comments CASCADE"))
+    op.execute(sa.text("DROP TABLE IF EXISTS application_review_scores CASCADE"))
+
     op.create_table(
         "application_review_scores",
         sa.Column("id", sa.Integer(), nullable=False),

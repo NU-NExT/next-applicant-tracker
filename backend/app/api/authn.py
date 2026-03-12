@@ -8,6 +8,10 @@ from app.config import settings
 from app.models.models import User
 
 
+def is_cognito_enabled() -> bool:
+    return bool(settings.cognito_user_pool_id and settings.cognito_app_client_id)
+
+
 def require_bearer_token(authorization: str | None) -> str:
     if not authorization:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Authorization header.")
@@ -27,6 +31,18 @@ def cognito_client():
 
 
 def get_identity_from_token(access_token: str) -> dict[str, str]:
+    if not is_cognito_enabled():
+        if not access_token.startswith("local:"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid local access token.")
+        email = access_token.removeprefix("local:").strip().lower()
+        if not email.endswith("@northeastern.edu"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid local access token.")
+        username = email.split("@", 1)[0]
+        return {
+            "username": username,
+            "email": email,
+        }
+
     client = cognito_client()
     try:
         response = client.get_user(AccessToken=access_token)
@@ -64,9 +80,24 @@ def get_or_create_user_from_access_token(db: Session, access_token: str, *, defa
 
 def ensure_admin_user(db: Session, access_token: str) -> User:
     user = get_or_create_user_from_access_token(db, access_token, default_admin=False)
-    if not user.is_active or not user.is_admin:
+    if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN privileges required.")
-    return user
+    if user.is_admin:
+        return user
+
+    if not is_cognito_enabled():
+        active_admin = db.query(User).filter(User.is_admin.is_(True), User.is_active.is_(True)).first()
+        if active_admin is None:
+            user.is_admin = True
+            merged = dict(user.user_metadata or {})
+            merged.update({"role": "ADMIN", "auth_provider": "local-fallback"})
+            user.user_metadata = merged
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return user
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN privileges required.")
 
 
 def merge_metadata(existing: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]:

@@ -4,11 +4,11 @@ import hmac
 from typing import Any
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.authn import ensure_admin_user, require_bearer_token
+from app.api.authn import ensure_admin_user, is_cognito_enabled, require_bearer_token
 from app.config import settings
 from app.db import get_db
 from app.models.models import User
@@ -102,6 +102,29 @@ def _is_admin_user(cognito: Any, access_token: str, db: Session) -> tuple[bool, 
 @router.post("/register-applicant")
 def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depends(get_db)):
     email, username = _northeastern_username_from_email(payload.email)
+    if not is_cognito_enabled():
+        existing = db.query(User).filter(User.email == email).first()
+        if existing is None:
+            existing = User(
+                email=email,
+                password=payload.password,
+                first_name=username,
+                last_name="Applicant",
+                is_admin=False,
+                is_active=True,
+                user_metadata={"auth_provider": "local-fallback", "username": username},
+            )
+            db.add(existing)
+        else:
+            existing.password = payload.password
+            existing.is_active = True
+            merged = dict(existing.user_metadata or {})
+            merged.update({"auth_provider": "local-fallback", "username": username})
+            existing.user_metadata = merged
+            db.add(existing)
+        db.commit()
+        return {"message": "Applicant registration submitted (local fallback).", "username": username}
+
     cognito = _get_cognito_client()
     hash_value = _secret_hash(username)
 
@@ -124,6 +147,11 @@ def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depe
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=exc.response.get("Error", {}).get("Message", "Failed to register applicant."),
+        ) from exc
+    except BotoCoreError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to reach Cognito service. Verify AWS/Cognito configuration.",
         ) from exc
 
     existing = db.query(User).filter(User.email == email).first()
@@ -150,6 +178,36 @@ def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depe
 @router.post("/login")
 def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
     email, username = _northeastern_username_from_email(payload.email)
+    if not is_cognito_enabled():
+        user = db.query(User).filter(User.email == email).first()
+        if user is None or user.password != payload.password:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+        if not user.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated.")
+        if payload.admin_mode and not user.is_admin:
+            active_admin = db.query(User).filter(User.is_admin.is_(True), User.is_active.is_(True)).first()
+            if active_admin is None:
+                user.is_admin = True
+                merged = dict(user.user_metadata or {})
+                merged.update({"role": "ADMIN", "auth_provider": "local-fallback"})
+                user.user_metadata = merged
+                db.add(user)
+                db.commit()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Administrator access is restricted to ADMIN accounts.",
+                )
+
+        return {
+            "access_token": f"local:{email}",
+            "id_token": f"local:{email}",
+            "refresh_token": None,
+            "expires_in": 3600 * 24 * 30,
+            "token_type": "Bearer",
+            "username": username,
+        }
+
     cognito = _get_cognito_client()
     auth_parameters = {"USERNAME": username, "PASSWORD": payload.password}
     hash_value = _secret_hash(username)
@@ -214,6 +272,8 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
 @router.post("/forgot-password")
 def forgot_password(payload: AuthForgotPasswordRequest):
     _, username = _northeastern_username_from_email(payload.email)
+    if not is_cognito_enabled():
+        return {"message": "Local fallback mode enabled. Use confirm reset to set a new password directly."}
     cognito = _get_cognito_client()
     hash_value = _secret_hash(username)
     request_payload: dict[str, Any] = {
@@ -235,8 +295,17 @@ def forgot_password(payload: AuthForgotPasswordRequest):
 
 
 @router.post("/confirm-forgot-password")
-def confirm_forgot_password(payload: AuthConfirmForgotPasswordRequest):
-    _, username = _northeastern_username_from_email(payload.email)
+def confirm_forgot_password(payload: AuthConfirmForgotPasswordRequest, db: Session = Depends(get_db)):
+    email, username = _northeastern_username_from_email(payload.email)
+    if not is_cognito_enabled():
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
+        user.password = payload.new_password
+        db.add(user)
+        db.commit()
+        return {"message": "Password has been reset successfully."}
+
     cognito = _get_cognito_client()
     hash_value = _secret_hash(username)
     request_payload: dict[str, Any] = {
@@ -266,9 +335,36 @@ def create_admin(
     db: Session = Depends(get_db),
 ):
     email, username = _northeastern_username_from_email(payload.email)
-    cognito = _get_cognito_client()
     access_token = require_bearer_token(authorization)
     ensure_admin_user(db, access_token)
+    if not is_cognito_enabled():
+        user = db.query(User).filter(User.email == email).first()
+        name_parts = payload.name.strip().split(" ", 1)
+        first_name = name_parts[0] if name_parts else username
+        last_name = name_parts[1] if len(name_parts) > 1 else "Admin"
+        if user is None:
+            user = User(
+                email=email,
+                password="<local-fallback-set-password-via-reset>",
+                first_name=first_name,
+                last_name=last_name,
+                is_admin=True,
+                is_active=True,
+                user_metadata={"auth_provider": "local-fallback", "username": username, "role": "ADMIN"},
+            )
+        else:
+            user.first_name = first_name
+            user.last_name = last_name
+            user.is_admin = True
+            user.is_active = True
+            merged = dict(user.user_metadata or {})
+            merged.update({"auth_provider": "local-fallback", "username": username, "role": "ADMIN"})
+            user.user_metadata = merged
+        db.add(user)
+        db.commit()
+        return {"message": "ADMIN account created successfully (local fallback).", "username": username}
+
+    cognito = _get_cognito_client()
 
     try:
         name_parts = payload.name.strip().split(" ", 1)
@@ -335,9 +431,18 @@ def deactivate_admin(
     db: Session = Depends(get_db),
 ):
     email, username = _northeastern_username_from_email(payload.email)
-    cognito = _get_cognito_client()
     access_token = require_bearer_token(authorization)
     ensure_admin_user(db, access_token)
+    if not is_cognito_enabled():
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.is_admin = False
+            user.is_active = False
+            db.add(user)
+            db.commit()
+        return {"message": "ADMIN account deactivated (local fallback).", "username": username}
+
+    cognito = _get_cognito_client()
 
     try:
         cognito.admin_remove_user_from_group(

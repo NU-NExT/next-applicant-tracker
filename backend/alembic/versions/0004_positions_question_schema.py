@@ -44,6 +44,10 @@ def upgrade() -> None:
         sa.Column("is_global", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
 
+    # Recover from partially-initialized environments where this table was created manually
+    # or by an interrupted previous attempt.
+    op.execute(sa.text("DROP TABLE IF EXISTS field_options CASCADE"))
+
     op.create_table(
         "field_options",
         sa.Column("id", sa.Integer(), nullable=False),

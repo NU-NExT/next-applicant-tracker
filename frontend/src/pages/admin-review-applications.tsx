@@ -12,6 +12,7 @@ import { Header } from "../components/header";
 
 export function AdminReviewApplicationsPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
+  const [allResults, setAllResults] = useState<CandidateReviewSearchRow[]>([]);
   const [results, setResults] = useState<CandidateReviewSearchRow[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
   const [detail, setDetail] = useState<CandidateReviewDetail | null>(null);
@@ -36,18 +37,31 @@ export function AdminReviewApplicationsPage() {
     () => results.find((row) => row.submission_id === selectedSubmissionId) ?? null,
     [results, selectedSubmissionId]
   );
+  const selectedIndex = useMemo(
+    () => results.findIndex((row) => row.submission_id === selectedSubmissionId),
+    [results, selectedSubmissionId]
+  );
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setStatusMessage("No active session found. Please sign in from /login first.");
+      setResults([]);
+      setAllResults([]);
+      setSelectedSubmissionId(null);
+      return;
+    }
     void (async () => {
       try {
         const rows = await searchCandidateReviews(token, {});
+        setAllResults(rows);
         setResults(rows);
+        setStatusMessage("");
         if (rows.length > 0) {
           setSelectedSubmissionId(rows[0].submission_id);
         }
       } catch {
         setResults([]);
+        setStatusMessage("Could not load applicants. Ensure you are signed in with an admin account.");
       }
     })();
   }, [token]);
@@ -80,6 +94,35 @@ export function AdminReviewApplicationsPage() {
     }
   };
 
+  const resetToAllApplicants = () => {
+    setFilters({
+      candidate_name: "",
+      northeastern_email: "",
+      major: "",
+      college: "",
+      grad_start: "",
+      grad_end: "",
+      coop_number: "",
+      year_grade_level: "",
+      position: "",
+      cycle: "",
+      application_status: "",
+    });
+    setResults(allResults);
+    setSelectedSubmissionId(allResults[0]?.submission_id ?? null);
+    setStatusMessage("");
+  };
+
+  const goToPreviousApplicant = () => {
+    if (selectedIndex <= 0) return;
+    setSelectedSubmissionId(results[selectedIndex - 1].submission_id);
+  };
+
+  const goToNextApplicant = () => {
+    if (selectedIndex < 0 || selectedIndex >= results.length - 1) return;
+    setSelectedSubmissionId(results[selectedIndex + 1].submission_id);
+  };
+
   return (
     <div className="min-h-screen bg-[#ececec]">
       <Header />
@@ -100,6 +143,9 @@ export function AdminReviewApplicationsPage() {
             ))}
             <button type="button" onClick={() => void runSearch()} className="rounded border border-[#8a8a8a] px-3 py-1 text-sm">
               Search
+            </button>
+            <button type="button" onClick={resetToAllApplicants} className="rounded border border-[#8a8a8a] px-3 py-1 text-sm">
+              View All Applicants
             </button>
           </div>
 
@@ -127,6 +173,29 @@ export function AdminReviewApplicationsPage() {
             <div className="rounded border border-[#b8b8b8] bg-white p-4">
               {detail ? (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-[#555]">
+                      Applicant {selectedIndex >= 0 ? selectedIndex + 1 : 0} of {results.length}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-[#8a8a8a] px-2 py-1 text-xs disabled:opacity-50"
+                        onClick={goToPreviousApplicant}
+                        disabled={selectedIndex <= 0}
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-[#8a8a8a] px-2 py-1 text-xs disabled:opacity-50"
+                        onClick={goToNextApplicant}
+                        disabled={selectedIndex < 0 || selectedIndex >= results.length - 1}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
                   <h2 className="text-2xl font-semibold text-[#1f1f1f]">
                     {selectedRow?.candidate_name ?? detail.submission.applicant_name} - {detail.position_title}
                   </h2>

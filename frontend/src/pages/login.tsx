@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import axios from "axios";
 
 import {
   authConfirmForgotPassword,
@@ -27,6 +28,14 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
 
   const useExistingAccount = () => {
     window.location.href = adminMode ? "/admin-dashboard" : nextApplicantPath;
+  };
+
+  const getErrorDetail = (error: unknown, fallback: string): string => {
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail;
+      if (typeof detail === "string" && detail.trim().length > 0) return detail;
+    }
+    return fallback;
   };
 
   const submitSignIn = async () => {
@@ -62,7 +71,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       }
       window.location.href = nextApplicantPath;
     } catch (error) {
-      setStatusMessage("Sign in failed. Check credentials and use your @northeastern.edu account.");
+      setStatusMessage(getErrorDetail(error, "Sign in failed. Check credentials and use your @northeastern.edu account."));
     } finally {
       setIsBusy(false);
     }
@@ -75,8 +84,10 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       await authRegisterApplicant({ email, password });
       setStatusMessage("Applicant account created. Please sign in.");
       setMode("signin");
-    } catch {
-      setStatusMessage("Registration failed. Only @northeastern.edu applicant accounts are allowed.");
+    } catch (error) {
+      setStatusMessage(
+        getErrorDetail(error, "Registration failed. Only @northeastern.edu applicant accounts are allowed.")
+      );
     } finally {
       setIsBusy(false);
     }
@@ -89,8 +100,8 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       await authForgotPassword({ email });
       setStatusMessage("Verification code sent to your Northeastern email.");
       setMode("reset");
-    } catch {
-      setStatusMessage("Unable to start reset flow. Ensure account email is valid.");
+    } catch (error) {
+      setStatusMessage(getErrorDetail(error, "Unable to start reset flow. Ensure account email is valid."));
     } finally {
       setIsBusy(false);
     }
@@ -107,8 +118,8 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       });
       setStatusMessage("Password reset complete. Sign in with your new password.");
       setMode("signin");
-    } catch {
-      setStatusMessage("Password reset failed. Verify code and try again.");
+    } catch (error) {
+      setStatusMessage(getErrorDetail(error, "Password reset failed. Verify code and try again."));
     } finally {
       setIsBusy(false);
     }
@@ -271,6 +282,30 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             >
               {adminMode ? "Go to Applicant Login" : "Go to Admin Login"}
             </button>
+            <div className="mt-4 border-t border-[#ececec] pt-3">
+              <p className="text-xs font-semibold text-[#444]">Temporary Dashboard Hooks</p>
+              <p className="mt-1 text-xs text-[#666]">
+                Use these while Cognito fallback mode is enabled.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/applicant-dashboard";
+                }}
+                className="mt-2 w-full rounded border border-[#c8c8c8] px-3 py-2 text-sm transition hover:bg-[#f3f3f3]"
+              >
+                Open Applicant Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/admin-dashboard";
+                }}
+                className="mt-2 w-full rounded border border-[#c8c8c8] px-3 py-2 text-sm transition hover:bg-[#f3f3f3]"
+              >
+                Open Admin Dashboard
+              </button>
+            </div>
           </aside>
         </div>
 

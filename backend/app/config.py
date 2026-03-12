@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     environment: str = "development"
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/application_tracker"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/next-ats-db"
 
     storage_backend: str = "local"
     local_storage_path: str = "./data"

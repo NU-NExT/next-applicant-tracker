@@ -58,3 +58,9 @@ variable "database_url" {
   sensitive   = true
   description = "Production database URL for backend"
 }
+
+variable "cognito_admin_group_name" {
+  type        = string
+  description = "Cognito group name used for administrators"
+  default     = "ADMIN"
+}

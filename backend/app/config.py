@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     s3_bucket_transcripts: str = "application-tracker-transcripts"
     s3_bucket_files: str = "application-tracker-files"
 
+    cognito_user_pool_id: str = ""
+    cognito_app_client_id: str = ""
+    cognito_app_client_secret: str = ""
+    cognito_admin_group_name: str = "ADMIN"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

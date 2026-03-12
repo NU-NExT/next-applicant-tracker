@@ -6,10 +6,12 @@ import { AdminReviewApplicationsPage } from "./pages/admin-review-applications";
 import { ApplicantDashboardPage } from "./pages/applicant-dashboard";
 import { AuthChooseAccountPage } from "./pages/auth-choose-account";
 import { BuildApplicationPage } from "./pages/build-application";
+import { ConsentPage } from "./pages/consent";
 import { DashboardPage } from "./pages/dashboard";
 import { JobDetailPage } from "./pages/job-detail";
 import { JobBoardPage } from "./pages/job-board";
 import { LoginPage } from "./pages/login";
+import { ProfilePage } from "./pages/profile";
 import { RepositoryRequestPage } from "./pages/repository-request";
 
 function normalizePath(pathname: string): string {
@@ -69,6 +71,19 @@ export function App() {
 
   if (path === "/auth/choose-account") {
     return <AuthChooseAccountPage />;
+  }
+
+  if (path === "/apply") {
+    const positionCode = searchParams.get("position");
+    return <RepositoryRequestPage jobId={positionCode ?? "1"} />;
+  }
+
+  if (path === "/profile") {
+    return <ProfilePage />;
+  }
+
+  if (path === "/consent") {
+    return <ConsentPage />;
   }
 
   const jobLoginMatch = path.match(/^\/jobs\/([^/]+)\/login$/);

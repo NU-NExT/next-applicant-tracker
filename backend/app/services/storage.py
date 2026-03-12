@@ -37,5 +37,14 @@ class StorageService:
         target.write_bytes(content)
         return str(target)
 
+    def get_view_url(self, bucket: str, key: str, expires_seconds: int = 3600) -> str:
+        if self.backend == "s3" and self.s3_client:
+            return self.s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=expires_seconds,
+            )
+        return key
+
 
 storage_service = StorageService()

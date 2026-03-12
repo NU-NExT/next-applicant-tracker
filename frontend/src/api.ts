@@ -24,34 +24,67 @@ export type JobListingRecord = {
   id: number;
   date_created: string;
   date_end: string;
+  position_title?: string;
+  position_code?: string;
   job: string;
   description: string;
+  required_skills?: string | null;
+  target_start_date?: string | null;
+  is_active?: boolean;
+  candidate_intake_url?: string;
   questions?: Array<{
     id: number;
     job_listing_id: number;
     prompt: string;
     sort_order: number;
+    question_type?: string;
+    character_limit?: number | null;
+    question_bank_key?: string | null;
+    question_config_json?: Record<string, unknown> | null;
+    is_global?: boolean;
   }>;
 };
 
 export type JobListingCreatePayload = {
   date_created: string;
   date_end: string;
+  position_title?: string;
+  position_code?: string;
   job: string;
   description: string;
-  questions?: Array<{ prompt: string; sort_order: number }>;
+  required_skills?: string;
+  target_start_date?: string;
+  is_active?: boolean;
+  candidate_intake_url?: string;
+  questions?: Array<{
+    prompt: string;
+    sort_order: number;
+    question_type?: string;
+    character_limit?: number | null;
+    question_bank_key?: string | null;
+    question_config_json?: Record<string, unknown> | null;
+    is_global?: boolean;
+  }>;
 };
 
 export type RepositoryQuestion = {
   prompt: string;
+  question_type?: string;
+  character_limit?: number | null;
+  question_bank_key?: string | null;
+  question_config_json?: Record<string, unknown> | null;
+  is_global?: boolean;
 };
 
 export type RepositoryRequestPayload = {
-  job_listing_id: number;
+  job_listing_id?: number;
+  position_code?: string;
   applicant_name: string;
   applicant_email: string;
   responses_json: string;
   status?: string;
+  profile_snapshot_json?: Record<string, unknown>;
+  resume_s3_key?: string;
 };
 
 export type AdminApplicationRow = {
@@ -75,7 +108,110 @@ export type RepositoryRequestRecord = {
   applicant_email: string;
   status: string;
   responses_json: string;
+  profile_snapshot_json?: Record<string, unknown>;
+  resume_s3_key?: string | null;
   created_at: string;
+};
+
+export type UserProfile = {
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  consented_at?: string | null;
+  user_metadata: Record<string, unknown>;
+};
+
+export type FieldOptionRecord = {
+  id: number;
+  category: string;
+  value: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type AuthLoginPayload = {
+  email: string;
+  password: string;
+  admin_mode?: boolean;
+};
+
+export type AuthLoginResponse = {
+  access_token: string;
+  id_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  token_type: string;
+  username: string;
+};
+
+export type AuthRegisterApplicantPayload = {
+  email: string;
+  password: string;
+};
+
+export type AuthForgotPasswordPayload = {
+  email: string;
+};
+
+export type AuthConfirmForgotPasswordPayload = {
+  email: string;
+  confirmation_code: string;
+  new_password: string;
+};
+
+export type AuthCreateAdminPayload = {
+  email: string;
+  name: string;
+};
+
+export type AuthDeactivateAdminPayload = {
+  email: string;
+};
+
+export type CandidateReviewSearchRow = {
+  submission_id: number;
+  candidate_name: string;
+  candidate_email: string;
+  major?: string | null;
+  graduation_date?: string | null;
+  coop_number?: string | null;
+  year_grade_level?: string | null;
+  college?: string | null;
+  position_applied_for: string;
+  cycle?: string | null;
+  application_status: string;
+};
+
+export type ApplicationReviewScoreRecord = {
+  id: number;
+  application_submission_id: number;
+  reviewer_user_id: number;
+  reviewer_name: string;
+  score: number;
+  created_at: string;
+};
+
+export type ApplicationReviewCommentRecord = {
+  id: number;
+  application_submission_id: number;
+  reviewer_user_id: number;
+  reviewer_name: string;
+  comment: string;
+  created_at: string;
+};
+
+export type CandidateReviewDetail = {
+  submission: RepositoryRequestRecord;
+  position_title: string;
+  position_code: string;
+  global_profile_fields: Record<string, unknown>;
+  position_question_answers: Array<Record<string, unknown>>;
+  resume_view_url?: string | null;
+  scores: ApplicationReviewScoreRecord[];
+  comments: ApplicationReviewCommentRecord[];
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -115,12 +251,53 @@ export async function getRepositoryQuestions(jobListingId: number): Promise<Repo
   return response.data;
 }
 
-export async function createRepositoryRequest(payload: RepositoryRequestPayload): Promise<void> {
-  await apiClient.post("/api/repository-requests", payload);
+export async function getRepositoryQuestionsByPosition(positionCode: string): Promise<RepositoryQuestion[]> {
+  const response = await apiClient.get<RepositoryQuestion[]>(`/api/repository/by-position/${positionCode}/questions`);
+  return response.data;
+}
+
+export async function createRepositoryRequest(payload: RepositoryRequestPayload, accessToken: string): Promise<void> {
+  await apiClient.post("/api/repository-requests", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 }
 
 export async function getRepositoryRequests(): Promise<RepositoryRequestRecord[]> {
   const response = await apiClient.get<RepositoryRequestRecord[]>("/api/repository-requests");
+  return response.data;
+}
+
+export async function getMyRepositoryRequests(accessToken: string): Promise<RepositoryRequestRecord[]> {
+  const response = await apiClient.get<RepositoryRequestRecord[]>("/api/repository-requests/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function uploadResumePdf(file: File, accessToken: string): Promise<{ resume_s3_key: string; resume_view_url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ resume_s3_key: string; resume_view_url: string }>(
+    "/api/repository-requests/upload-resume",
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function getSubmissionResumeViewUrl(
+  submissionId: number,
+  accessToken: string
+): Promise<{ resume_view_url: string }> {
+  const response = await apiClient.get<{ resume_view_url: string }>(
+    `/api/repository-requests/${submissionId}/resume-view-url`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
   return response.data;
 }
 
@@ -137,4 +314,142 @@ export async function getAdminPastApplications(): Promise<AdminApplicationRow[]>
 export async function getAdminDemographicsSummary(): Promise<DemographicsSummary> {
   const response = await apiClient.get<DemographicsSummary>("/api/admin/demographics-summary");
   return response.data;
+}
+
+export async function authLogin(payload: AuthLoginPayload): Promise<AuthLoginResponse> {
+  const response = await apiClient.post<AuthLoginResponse>("/api/auth/login", payload);
+  return response.data;
+}
+
+export async function authRegisterApplicant(payload: AuthRegisterApplicantPayload): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/register-applicant", payload);
+  return response.data;
+}
+
+export async function authForgotPassword(payload: AuthForgotPasswordPayload): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/forgot-password", payload);
+  return response.data;
+}
+
+export async function authConfirmForgotPassword(
+  payload: AuthConfirmForgotPasswordPayload
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/confirm-forgot-password", payload);
+  return response.data;
+}
+
+export async function authCreateAdmin(
+  payload: AuthCreateAdminPayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/create-admin", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authDeactivateAdmin(
+  payload: AuthDeactivateAdminPayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/deactivate", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function getMyProfile(accessToken: string): Promise<UserProfile> {
+  const response = await apiClient.get<UserProfile>("/api/profile/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function updateMyProfile(
+  accessToken: string,
+  payload: Partial<Pick<UserProfile, "first_name" | "last_name">> & { user_metadata?: Record<string, unknown> }
+): Promise<UserProfile> {
+  const response = await apiClient.patch<UserProfile>("/api/profile/me", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function acceptDataConsent(accessToken: string): Promise<UserProfile> {
+  const response = await apiClient.post<UserProfile>(
+    "/api/profile/consent",
+    {},
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return response.data;
+}
+
+export async function searchCandidateReviews(
+  accessToken: string,
+  filters: Record<string, string>
+): Promise<CandidateReviewSearchRow[]> {
+  const response = await apiClient.get<CandidateReviewSearchRow[]>("/api/admin/review/search", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: filters,
+  });
+  return response.data;
+}
+
+export async function getCandidateReviewDetail(
+  submissionId: number,
+  accessToken: string
+): Promise<CandidateReviewDetail> {
+  const response = await apiClient.get<CandidateReviewDetail>(`/api/admin/review/applications/${submissionId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function addCandidateReviewScore(
+  submissionId: number,
+  score: number,
+  accessToken: string
+): Promise<ApplicationReviewScoreRecord> {
+  const response = await apiClient.post<ApplicationReviewScoreRecord>(
+    `/api/admin/review/applications/${submissionId}/scores`,
+    { score },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return response.data;
+}
+
+export async function addCandidateReviewComment(
+  submissionId: number,
+  comment: string,
+  accessToken: string
+): Promise<ApplicationReviewCommentRecord> {
+  const response = await apiClient.post<ApplicationReviewCommentRecord>(
+    `/api/admin/review/applications/${submissionId}/comments`,
+    { comment },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return response.data;
+}
+
+export async function getFieldOptions(category?: string): Promise<FieldOptionRecord[]> {
+  const response = await apiClient.get<FieldOptionRecord[]>("/api/admin/field-options", {
+    params: category ? { category } : undefined,
+  });
+  return response.data;
+}
+
+export async function createFieldOption(
+  payload: { category: string; value: string; sort_order?: number; is_active?: boolean },
+  accessToken: string
+): Promise<FieldOptionRecord> {
+  const response = await apiClient.post<FieldOptionRecord>("/api/admin/field-options", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function deleteFieldOption(optionId: number, accessToken: string): Promise<void> {
+  await apiClient.delete(`/api/admin/field-options/${optionId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 }

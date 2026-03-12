@@ -1,4 +1,4 @@
-import { Menu, X } from "lucide-react";
+import { CircleUserRound, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type MenuSection = {
@@ -46,6 +46,7 @@ const sections: MenuSection[] = [
 
 export function Header() {
   const [open, setOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(64);
 
@@ -66,6 +67,10 @@ export function Header() {
     };
   }, []);
 
+  useEffect(() => {
+    setIsLoggedIn(Boolean(localStorage.getItem("auth_access_token")));
+  }, []);
+
   return (
     <header
       ref={headerRef}
@@ -78,6 +83,16 @@ export function Header() {
         </a>
 
         <div className="flex items-center gap-2">
+          {isLoggedIn ? (
+            <a
+              href="/profile"
+              className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
+              aria-label="My profile"
+              title="My profile"
+            >
+              <CircleUserRound className="h-5 w-5" />
+            </a>
+          ) : null}
           <a
             href="/login?admin=1"
             className="rounded border border-white/70 px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"

@@ -1,166 +1,245 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { getRepositoryRequests, type RepositoryRequestRecord } from "../api";
+import {
+  addCandidateReviewComment,
+  addCandidateReviewScore,
+  getCandidateReviewDetail,
+  searchCandidateReviews,
+  type CandidateReviewDetail,
+  type CandidateReviewSearchRow,
+} from "../api";
 import { Header } from "../components/header";
 
-function buildMockSubmission(index: number): RepositoryRequestRecord {
-  const isX = index === 0;
-  const name = isX ? "Applicant X" : `Applicant ${index}`;
-  const demographics = [
-    { gender: "Woman", ethnicity: "Asian", disability: "No" },
-    { gender: "Man", ethnicity: "White", disability: "No" },
-    { gender: "Non-binary", ethnicity: "Latino", disability: "Yes" },
-    { gender: "Woman", ethnicity: "Black", disability: "No" },
-    { gender: "Man", ethnicity: "Middle Eastern", disability: "No" },
-  ][index % 5];
-
-  return {
-    id: 1000 + index,
-    job_listing_id: 1,
-    applicant_name: name,
-    applicant_email: `applicant${isX ? "x" : index}@northeastern.edu`,
-    status: "submitted",
-    created_at: new Date(Date.now() - index * 86400000).toISOString(),
-    responses_json: JSON.stringify({
-      demographics: {
-        email: `applicant${isX ? "x" : index}@northeastern.edu`,
-        ...demographics,
-      },
-      answers: [
-        {
-          section: "introductory questions",
-          question: "Tell us about your relevant experience for this role.",
-          answer:
-            "I have collaborated across product and engineering teams to deliver full-stack features, with strong ownership from design through release.",
-        },
-        {
-          section: "role-specific questions/exp questions",
-          question: "Describe a project where you collaborated under deadlines.",
-          answer:
-            "I worked on a five-person sprint team and coordinated API/frontend integration while keeping deployment deadlines and quality targets.",
-        },
-        {
-          section: "classes taken",
-          question: "Which courses best prepared you for this role?",
-          answer:
-            "Software engineering, databases, and distributed systems coursework most directly prepared me for this application and role scope.",
-        },
-        {
-          section: "demographics",
-          question: "Do you require interview accommodations?",
-          answer: "No accommodations requested at this time.",
-        },
-      ],
-    }),
-  };
-}
-
 export function AdminReviewApplicationsPage() {
-  const [submissions, setSubmissions] = useState<RepositoryRequestRecord[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const token = localStorage.getItem("auth_access_token") ?? "";
+  const [results, setResults] = useState<CandidateReviewSearchRow[]>([]);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<CandidateReviewDetail | null>(null);
+  const [newScore, setNewScore] = useState("85");
+  const [newComment, setNewComment] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [filters, setFilters] = useState<Record<string, string>>({
+    candidate_name: "",
+    northeastern_email: "",
+    major: "",
+    college: "",
+    grad_start: "",
+    grad_end: "",
+    coop_number: "",
+    year_grade_level: "",
+    position: "",
+    cycle: "",
+    application_status: "",
+  });
+
+  const selectedRow = useMemo(
+    () => results.find((row) => row.submission_id === selectedSubmissionId) ?? null,
+    [results, selectedSubmissionId]
+  );
 
   useEffect(() => {
+    if (!token) return;
     void (async () => {
       try {
-        const rows = await getRepositoryRequests();
-        const standardSWE = rows.filter((r) => r.job_listing_id === 1);
-        const merged = [...standardSWE];
-        for (let i = 0; merged.length < 10; i += 1) {
-          merged.push(buildMockSubmission(i));
+        const rows = await searchCandidateReviews(token, {});
+        setResults(rows);
+        if (rows.length > 0) {
+          setSelectedSubmissionId(rows[0].submission_id);
         }
-        setSubmissions(merged.slice(0, 10));
       } catch {
-        setSubmissions(Array.from({ length: 10 }, (_, idx) => buildMockSubmission(idx)));
+        setResults([]);
       }
     })();
-  }, []);
+  }, [token]);
 
-  const selectedSubmission = submissions[selectedIndex];
-  const parsed = (() => {
-    if (!selectedSubmission) return null;
-    try {
-      return JSON.parse(selectedSubmission.responses_json) as {
-        demographics?: Record<string, string>;
-        answers?: Array<{ section: string; question: string; answer: string }>;
-      };
-    } catch {
-      return null;
+  useEffect(() => {
+    if (!token || !selectedSubmissionId) {
+      setDetail(null);
+      return;
     }
-  })();
+    void (async () => {
+      try {
+        const payload = await getCandidateReviewDetail(selectedSubmissionId, token);
+        setDetail(payload);
+      } catch {
+        setDetail(null);
+      }
+    })();
+  }, [selectedSubmissionId, token]);
 
-  const goPrev = () => setSelectedIndex((idx) => Math.max(0, idx - 1));
-  const goNext = () => setSelectedIndex((idx) => Math.min(submissions.length - 1, idx + 1));
+  const runSearch = async () => {
+    if (!token) return;
+    setStatusMessage("");
+    try {
+      const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v.trim().length > 0));
+      const rows = await searchCandidateReviews(token, cleanFilters);
+      setResults(rows);
+      setSelectedSubmissionId(rows[0]?.submission_id ?? null);
+    } catch {
+      setStatusMessage("Search failed.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#ececec]">
       <Header />
-      <main className="mx-auto max-w-[1100px] px-4 pt-24">
+      <main className="mx-auto max-w-[1300px] px-4 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-[#d8d8d8] p-5">
-          <h1 className="text-4xl font-semibold text-[#1f1f1f]">Standard SWE Applications</h1>
-          <p className="mt-2 text-lg text-[#2d2d2d]">Total Submissions: {submissions.length}</p>
+          <h1 className="text-4xl font-semibold text-[#1f1f1f]">Application Review</h1>
+          <p className="mt-2 text-lg text-[#2d2d2d]">Search for candidate</p>
 
-          {submissions.length > 0 ? (
-            <>
-              <div className="mt-4 flex items-center gap-3">
-                <label className="text-sm text-[#2d2d2d]" htmlFor="student-select">
-                  Select Student
-                </label>
-                <select
-                  id="student-select"
-                  className="rounded border border-[#a5a5a5] px-2 py-1"
-                  value={selectedIndex}
-                  onChange={(e) => setSelectedIndex(Number(e.target.value))}
-                >
-                  {submissions.map((submission, idx) => (
-                    <option key={submission.id} value={idx}>
-                      {submission.applicant_name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={goPrev}
-                  disabled={selectedIndex === 0}
-                  className="rounded border border-[#8a8a8a] px-3 py-1 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={goNext}
-                  disabled={selectedIndex === submissions.length - 1}
-                  className="rounded border border-[#8a8a8a] px-3 py-1 disabled:opacity-50"
-                >
-                  Next
-                </button>
+          <div className="mt-3 grid gap-2 md:grid-cols-4">
+            {Object.keys(filters).map((key) => (
+              <input
+                key={key}
+                value={filters[key]}
+                onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                placeholder={key.split("_").join(" ")}
+                className="rounded border border-[#bdbdbd] px-2 py-1 text-sm"
+              />
+            ))}
+            <button type="button" onClick={() => void runSearch()} className="rounded border border-[#8a8a8a] px-3 py-1 text-sm">
+              Search
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-[1fr_2fr]">
+            <div className="rounded border border-[#b8b8b8] bg-white p-3">
+              <p className="mb-2 text-sm font-semibold text-[#2d2d2d]">Results ({results.length})</p>
+              <div className="space-y-2">
+                {results.map((row) => (
+                  <button
+                    key={row.submission_id}
+                    type="button"
+                    onClick={() => setSelectedSubmissionId(row.submission_id)}
+                    className={`w-full rounded border px-2 py-2 text-left text-sm ${
+                      row.submission_id === selectedSubmissionId ? "border-[#1f6f5f]" : "border-[#d0d0d0]"
+                    }`}
+                  >
+                    <p className="font-semibold">{row.candidate_name}</p>
+                    <p>{row.major ?? "N/A"} | {row.graduation_date ?? "N/A"} | {row.coop_number ?? "N/A"}</p>
+                    <p>Status: {row.application_status}</p>
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="mt-5 rounded border border-[#b8b8b8] bg-white p-4">
-                <h2 className="text-2xl font-semibold text-[#1f1f1f]"> Applicant {selectedSubmission.id}</h2>
-                <p className="mt-1 text-sm text-[#4b4b4b]">
-                  Submitted: {new Date(selectedSubmission.created_at).toLocaleString()}
-                </p>
+            <div className="rounded border border-[#b8b8b8] bg-white p-4">
+              {detail ? (
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-semibold text-[#1f1f1f]">
+                    {selectedRow?.candidate_name ?? detail.submission.applicant_name} - {detail.position_title}
+                  </h2>
+                  <p className="text-sm text-[#4b4b4b]">Position Code: {detail.position_code}</p>
+                  <p className="text-sm text-[#4b4b4b]">Status: {detail.submission.status}</p>
 
-                <div className="mt-4 space-y-4">
-                  {(parsed?.answers ?? []).length > 0 ? (
-                    (parsed?.answers ?? []).map((entry, idx) => (
-                      <div key={`${entry.question}-${idx}`} className="rounded border border-[#d6d6d6] bg-[#fafafa] p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#1f6f5f]">{entry.section}</p>
-                        <p className="mt-1 font-semibold text-[#1f1f1f]">{entry.question}</p>
-                        <p className="mt-1 leading-7 text-[#2f2f2f]">{entry.answer}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded border border-[#d6d6d6] bg-[#fff7d6] p-3 text-[#5c4a00]">
-                      No questions were found for this submission.
+                  <div>
+                    <p className="font-semibold">Global Profile Fields</p>
+                    <div className="mt-2 grid grid-cols-1 gap-1 text-sm md:grid-cols-2">
+                      {Object.entries(detail.global_profile_fields ?? {}).map(([key, value]) => (
+                        <p key={key}>
+                          <span className="font-medium">{key}:</span> {String(value)}
+                        </p>
+                      ))}
                     </div>
-                  )}
+                  </div>
+
+                  <div>
+                    <p className="font-semibold">Resume</p>
+                    {detail.resume_view_url ? (
+                      <iframe title="Resume Preview" src={detail.resume_view_url} className="mt-2 h-72 w-full rounded border" />
+                    ) : null}
+                    <div className="mt-2">
+                      {detail.resume_view_url ? (
+                        <a href={detail.resume_view_url} target="_blank" rel="noreferrer" className="underline">
+                          Download resume
+                        </a>
+                      ) : (
+                        <p className="text-sm text-[#666]">No resume uploaded.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="font-semibold">Position-specific Answers</p>
+                    <div className="mt-2 space-y-2">
+                      {(detail.position_question_answers ?? []).map((entry, idx) => (
+                        <div key={`ans-${idx}`} className="rounded border border-[#d6d6d6] bg-[#fafafa] p-2">
+                          <p className="font-medium">{String(entry.question ?? "Question")}</p>
+                          <p>{String(entry.answer ?? "")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="font-semibold">Scores</p>
+                      <div className="mt-2 space-y-1 text-sm">
+                        {detail.scores.map((score) => (
+                          <p key={score.id}>
+                            {score.reviewer_name}: {score.score} ({new Date(score.created_at).toLocaleString()})
+                          </p>
+                        ))}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={newScore}
+                          onChange={(e) => setNewScore(e.target.value)}
+                          className="w-20 rounded border border-[#c3c3c3] px-2 py-1 text-sm"
+                        />
+                        <button
+                          type="button"
+                          className="rounded border border-[#8a8a8a] px-3 py-1 text-sm"
+                          onClick={async () => {
+                            if (!token || !selectedSubmissionId) return;
+                            await addCandidateReviewScore(selectedSubmissionId, Number(newScore), token);
+                            const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
+                            setDetail(refreshed);
+                          }}
+                        >
+                          Add Score
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="font-semibold">Comments</p>
+                      <div className="mt-2 max-h-40 space-y-1 overflow-auto text-sm">
+                        {detail.comments.map((comment) => (
+                          <p key={comment.id}>
+                            <span className="font-medium">{comment.reviewer_name}:</span> {comment.comment}
+                          </p>
+                        ))}
+                      </div>
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        className="mt-2 h-20 w-full rounded border border-[#c3c3c3] px-2 py-1 text-sm"
+                        placeholder="Add reviewer comment"
+                      />
+                      <button
+                        type="button"
+                        className="mt-2 rounded border border-[#8a8a8a] px-3 py-1 text-sm"
+                        onClick={async () => {
+                          if (!token || !selectedSubmissionId || !newComment.trim()) return;
+                          await addCandidateReviewComment(selectedSubmissionId, newComment.trim(), token);
+                          setNewComment("");
+                          const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
+                          setDetail(refreshed);
+                        }}
+                      >
+                        Add Comment
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
-          ) : (
-            <p className="mt-4 text-lg text-[#2d2d2d]">No submissions found yet.</p>
-          )}
+              ) : (
+                <p className="text-[#444]">Select a candidate result to open full profile and application.</p>
+              )}
+            </div>
+          </div>
+          {statusMessage ? <p className="mt-3 text-sm text-[#444]">{statusMessage}</p> : null}
         </section>
       </main>
     </div>

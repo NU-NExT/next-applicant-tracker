@@ -58,3 +58,23 @@ variable "database_url" {
   sensitive   = true
   description = "Production database URL for backend"
 }
+
+variable "db_instance_class" {
+  type    = string
+  default = "db.t3.micro"
+}
+
+variable "db_name" {
+  type    = string
+  default = "next_ats"
+}
+
+variable "db_username" {
+  type      = string
+  sensitive = true
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+}

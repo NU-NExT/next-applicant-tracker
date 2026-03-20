@@ -1,6 +1,6 @@
 project_name = "application-tracker"
 environment  = "dev"
-aws_region   = "us-east-1"
+aws_region   = "us-east-2"
 
 student_role_assumer_principal_arn  = "arn:aws:iam::123456789012:role/student-federated-principal"
 reviewer_role_assumer_principal_arn = "arn:aws:iam::123456789012:role/reviewer-federated-principal"

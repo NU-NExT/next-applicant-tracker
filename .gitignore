@@ -40,4 +40,4 @@ frontend/dist/
 infrastructure/terraform/.terraform/
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
-infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/terraform.tfvarsterraform.tfvars

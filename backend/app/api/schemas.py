@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -26,30 +27,60 @@ class JobMetadataUpdate(BaseModel):
 
 
 class JobMetadataRead(JobMetadataBase):
-    id: int
+    metadata_id: int
 
     model_config = {"from_attributes": True}
 
 
 class JobListingBase(BaseModel):
+    code_id: str | None = None
     position_title: str | None = None
-    position_code: str | None = None
     date_end: datetime
     job: str | None = None
-    description: str
+    description: dict[str, Any]
+    slug: str | None = None
+    application_cycle_id: int | None = None
+    status: str = "active"
     required_skills: str | None = None
     target_start_date: datetime | None = None
     is_active: bool = True
-    candidate_intake_url: str | None = None
+
+
+class ApplicationCycleBase(BaseModel):
+    name: str
+    slug: str
+
+
+class ApplicationCycleCreate(ApplicationCycleBase):
+    pass
+
+
+class ApplicationCycleRead(ApplicationCycleBase):
+    application_cycle_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class QuestionTypeBase(BaseModel):
+    code: str
+    label: str
+
+
+class QuestionTypeCreate(QuestionTypeBase):
+    pass
+
+
+class QuestionTypeRead(QuestionTypeBase):
+    question_type_id: int
+
+    model_config = {"from_attributes": True}
 
 
 class QuestionnaireQuestionBase(BaseModel):
     prompt: str
     sort_order: int = 0
-    question_type: str = "free_text"
+    question_type_id: int
     character_limit: int | None = None
-    question_bank_key: str | None = None
-    question_config_json: dict | None = None
     is_global: bool = False
 
 
@@ -58,7 +89,7 @@ class QuestionnaireQuestionCreate(QuestionnaireQuestionBase):
 
 
 class QuestionnaireQuestionRead(QuestionnaireQuestionBase):
-    id: int
+    question_id: int
     job_listing_id: int
 
     model_config = {"from_attributes": True}
@@ -78,8 +109,8 @@ class JobListingUpdate(BaseModel):
 
 
 class JobListingRead(JobListingBase):
-    id: int
-    date_created: datetime
+    listing_id: int
+    listing_date_created: datetime
     questions: list[QuestionnaireQuestionRead] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
@@ -87,13 +118,21 @@ class JobListingRead(JobListingBase):
 
 class ApplicationSubmissionBase(BaseModel):
     job_listing_id: int | None = None
-    position_code: str | None = None
+    user_id: int | None = None
+    job_listing_slug: str | None = None
     applicant_name: str
     applicant_email: str
-    status: str = "submitted"
+    status: str = "draft"
     responses_json: str
     profile_snapshot_json: dict = Field(default_factory=dict)
     resume_s3_key: str | None = None
+    submitted_at: datetime | None = None
+    is_draft: bool = True
+    sent_assessment: bool = False
+    accepted_assessment: bool = False
+    interview_invited: bool = False
+    interview_completed: bool = False
+    offer_extended: bool = False
 
 
 class ApplicationSubmissionCreate(ApplicationSubmissionBase):
@@ -101,27 +140,32 @@ class ApplicationSubmissionCreate(ApplicationSubmissionBase):
 
 
 class ApplicationSubmissionRead(ApplicationSubmissionBase):
-    id: int
-    created_at: datetime
+    application_submission_id: int
+    application_submission_created_at: datetime
+    application_submission_updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ApplicationSubmissionStatusUpdate(BaseModel):
-    status: str
+    status: str | None = None
+    application_status_id: int | None = None
+    effective_at: datetime | None = None
 
 
 class ApplicationReviewScoreCreate(BaseModel):
-    score: int
+    score_value_id: int | None = None
+    score: int | None = None
 
 
 class ApplicationReviewScoreRead(BaseModel):
-    id: int
+    application_review_score_id: int
     application_submission_id: int
     reviewer_user_id: int
     reviewer_name: str
-    score: int
-    created_at: datetime
+    score_value_id: int
+    score: int | None = None
+    application_review_score_created_at: datetime
 
 
 class ApplicationReviewCommentCreate(BaseModel):
@@ -129,12 +173,12 @@ class ApplicationReviewCommentCreate(BaseModel):
 
 
 class ApplicationReviewCommentRead(BaseModel):
-    id: int
+    application_review_comment_id: int
     application_submission_id: int
     reviewer_user_id: int
     reviewer_name: str
     comment: str
-    created_at: datetime
+    application_review_comment_created_at: datetime
 
 
 class CandidateReviewSearchRow(BaseModel):
@@ -154,7 +198,8 @@ class CandidateReviewSearchRow(BaseModel):
 class CandidateReviewDetail(BaseModel):
     submission: ApplicationSubmissionRead
     position_title: str
-    position_code: str
+    position_slug: str | None = None
+    position_code: str | None = None
     global_profile_fields: dict = Field(default_factory=dict)
     position_question_answers: list[dict] = Field(default_factory=list)
     resume_view_url: str | None = None
@@ -204,7 +249,8 @@ class UserUpdate(BaseModel):
     user_metadata: dict | None = None
 
 class UserRead(UserBase):
-    id: int
+    user_id: int
+    role_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -227,7 +273,131 @@ class FieldOptionUpdate(BaseModel):
 
 
 class FieldOptionRead(FieldOptionBase):
-    id: int
-    created_at: datetime
+    field_option_id: int
+    field_option_created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RoleBase(BaseModel):
+    name: str
+
+
+class RoleCreate(RoleBase):
+    pass
+
+
+class RoleRead(RoleBase):
+    role_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ProfileBase(BaseModel):
+    full_legal_name: str | None = None
+    phone_number: str | None = None
+    expected_graduation_date: str | None = None
+    current_year: str | None = None
+    coop_number: str | None = None
+    major: str | None = None
+    minor: str | None = None
+    concentration: str | None = None
+    gpa: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    club: str | None = None
+    past_experience_count: int | None = None
+    unique_experience_count: int | None = None
+    profile_edited_at: datetime | None = None
+
+
+class ProfileCreate(ProfileBase):
+    user_id: int
+
+
+class ProfileRead(ProfileBase):
+    profile_id: int
+    user_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class JobListingQuestionBase(BaseModel):
+    job_listing_id: int
+    question_id: int
+    sequence_number: int = 0
+
+
+class JobListingQuestionCreate(JobListingQuestionBase):
+    pass
+
+
+class JobListingQuestionRead(JobListingQuestionBase):
+    job_listing_question_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ApplicationQuestionResponseBase(BaseModel):
+    application_submission_id: int
+    question_id: int
+    response_text: Any
+
+
+class ApplicationQuestionResponseCreate(ApplicationQuestionResponseBase):
+    pass
+
+
+class ApplicationQuestionResponseRead(ApplicationQuestionResponseBase):
+    application_question_response_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ApplicationStatusBase(BaseModel):
+    code: str
+    label: str
+
+
+class ApplicationStatusCreate(ApplicationStatusBase):
+    pass
+
+
+class ApplicationStatusRead(ApplicationStatusBase):
+    application_status_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ApplicationSubmissionStatusEventBase(BaseModel):
+    application_submission_id: int
+    application_status_id: int
+    effective_at: datetime
+    created_by_user_id: int | None = None
+
+
+class ApplicationSubmissionStatusEventCreate(ApplicationSubmissionStatusEventBase):
+    pass
+
+
+class ApplicationSubmissionStatusEventRead(ApplicationSubmissionStatusEventBase):
+    application_submission_status_event_id: int
+    application_submission_status_event_created_at: datetime
+    application_submission_status_event_updated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ScoreValueBase(BaseModel):
+    value: int
+    label: str
+
+
+class ScoreValueCreate(ScoreValueBase):
+    pass
+
+
+class ScoreValueRead(ScoreValueBase):
+    score_value_id: int
 
     model_config = {"from_attributes": True}

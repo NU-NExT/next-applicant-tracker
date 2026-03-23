@@ -13,3 +13,23 @@ output "cognito_user_pool_id" {
 output "cognito_app_client_id" {
   value = aws_cognito_user_pool_client.app_client.id
 }
+
+output "cognito_hosted_ui_domain" {
+  value = "${aws_cognito_user_pool_domain.hosted_ui.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
+output "cognito_hosted_ui_login_url" {
+  value = "https://${aws_cognito_user_pool_domain.hosted_ui.domain}.auth.${var.aws_region}.amazoncognito.com/login?client_id=${aws_cognito_user_pool_client.app_client.id}&response_type=code&scope=openid+email+profile&redirect_uri=${urlencode(var.cognito_callback_urls[0])}"
+}
+
+output "s3_bucket_resumes" {
+  value = aws_s3_bucket.resumes.bucket
+}
+
+output "s3_bucket_transcripts" {
+  value = aws_s3_bucket.transcripts.bucket
+}
+
+output "s3_bucket_files" {
+  value = aws_s3_bucket.files.bucket
+}

@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.authn import ensure_admin_user, require_bearer_token
+from app.api.authn import ensure_admin_user, get_or_create_user_from_access_token, require_bearer_token
 from app.api.schemas import (
     ApplicationReviewCommentCreate,
     ApplicationReviewCommentRead,
@@ -136,7 +136,9 @@ def get_review_detail(
     db: Session = Depends(get_db),
 ) -> CandidateReviewDetail:
     token = require_bearer_token(authorization)
-    ensure_admin_user(db, token)
+    viewer = get_or_create_user_from_access_token(db, token)
+    if not viewer.is_active:
+        raise HTTPException(status_code=403, detail="Active account required.")
 
     submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
     if submission is None:

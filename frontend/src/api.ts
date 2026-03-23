@@ -22,16 +22,19 @@ export type JobDataRecord = {
 
 export type JobListingRecord = {
   id: number;
+  code_id?: string | null;
   date_created: string;
   date_end: string;
   position_title?: string;
   position_code?: string;
   job: string;
   description: string;
+  status?: string;
   required_skills?: string | null;
   target_start_date?: string | null;
   is_active?: boolean;
   candidate_intake_url?: string;
+  ats_questions_url?: string | null;
   questions?: Array<{
     id: number;
     job_listing_id: number;
@@ -41,6 +44,9 @@ export type JobListingRecord = {
     character_limit?: number | null;
     question_bank_key?: string | null;
     question_config_json?: Record<string, unknown> | null;
+    answer_type?: string;
+    answer_bank_key?: string | null;
+    answer_config_json?: Record<string, unknown> | null;
     is_global?: boolean;
   }>;
 };
@@ -48,14 +54,17 @@ export type JobListingRecord = {
 export type JobListingCreatePayload = {
   date_created: string;
   date_end: string;
+  code_id?: string;
   position_title?: string;
   position_code?: string;
   job: string;
   description: string;
+  status?: string;
   required_skills?: string;
   target_start_date?: string;
   is_active?: boolean;
   candidate_intake_url?: string;
+  ats_questions_url?: string;
   questions?: Array<{
     prompt: string;
     sort_order: number;
@@ -63,6 +72,9 @@ export type JobListingCreatePayload = {
     character_limit?: number | null;
     question_bank_key?: string | null;
     question_config_json?: Record<string, unknown> | null;
+    answer_type?: string;
+    answer_bank_key?: string | null;
+    answer_config_json?: Record<string, unknown> | null;
     is_global?: boolean;
   }>;
 };
@@ -73,6 +85,9 @@ export type RepositoryQuestion = {
   character_limit?: number | null;
   question_bank_key?: string | null;
   question_config_json?: Record<string, unknown> | null;
+  answer_type?: string;
+  answer_bank_key?: string | null;
+  answer_config_json?: Record<string, unknown> | null;
   is_global?: boolean;
 };
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 import {
@@ -8,6 +8,7 @@ import {
   authRegisterApplicant,
   getMyProfile,
 } from "../api";
+import { beginHostedLogin, completeHostedLoginFromUrl, isHostedLoginConfigured } from "../cognitoHostedAuth";
 import { Header } from "../components/header";
 
 type LoginPageProps = {
@@ -16,6 +17,7 @@ type LoginPageProps = {
 };
 
 export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
+  const hostedLoginEnabled = isHostedLoginConfigured();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
@@ -38,7 +40,71 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
     return fallback;
   };
 
+  const finishLogin = async (accessToken: string, nextPath: string, useAdminRedirect = adminMode) => {
+    localStorage.setItem("auth_access_token", accessToken);
+    setHasToken(true);
+    if (useAdminRedirect) {
+      window.location.href = "/admin-dashboard";
+      return;
+    }
+
+    try {
+      const profile = await getMyProfile(accessToken);
+      const hasConsent = Boolean(profile.consented_at) || Boolean((profile.user_metadata as Record<string, unknown>)?.consent);
+      if (!hasConsent) {
+        window.location.href = `/consent?next=${encodeURIComponent(nextPath)}`;
+        return;
+      }
+    } catch {
+      window.location.href = `/consent?next=${encodeURIComponent(nextPath)}`;
+      return;
+    }
+
+    window.location.href = nextPath;
+  };
+
+  useEffect(() => {
+    if (!hostedLoginEnabled) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const callbackData = await completeHostedLoginFromUrl();
+        if (!callbackData || cancelled) return;
+
+        const { tokens, context } = callbackData;
+        localStorage.setItem("auth_access_token", tokens.access_token);
+        localStorage.setItem("auth_id_token", tokens.id_token);
+        if (tokens.refresh_token) {
+          localStorage.setItem("auth_refresh_token", tokens.refresh_token);
+        }
+
+        await finishLogin(tokens.access_token, context.nextPath, context.adminMode);
+      } catch (error) {
+        if (cancelled) return;
+        setStatusMessage(getErrorDetail(error, "Cognito sign in failed. Please try again."));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hostedLoginEnabled]);
+
   const submitSignIn = async () => {
+    if (hostedLoginEnabled) {
+      setIsBusy(true);
+      setStatusMessage("");
+      try {
+        await beginHostedLogin({ adminMode, nextPath: nextApplicantPath });
+      } catch (error) {
+        setStatusMessage(getErrorDetail(error, "Unable to start Cognito hosted login."));
+      } finally {
+        setIsBusy(false);
+      }
+      return;
+    }
+
     setIsBusy(true);
     setStatusMessage("");
     try {
@@ -52,24 +118,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       if (data.refresh_token) {
         localStorage.setItem("auth_refresh_token", data.refresh_token);
       }
-      setHasToken(true);
-      if (adminMode) {
-        window.location.href = "/admin-dashboard";
-        return;
-      }
-      try {
-        const profile = await getMyProfile(data.access_token);
-        const hasConsent = Boolean(profile.consented_at) || Boolean((profile.user_metadata as Record<string, unknown>)?.consent);
-        if (!hasConsent) {
-          window.location.href = `/consent?next=${encodeURIComponent(nextApplicantPath)}`;
-          return;
-        }
-      } catch {
-        // If profile lookup fails, force consent screen once.
-        window.location.href = `/consent?next=${encodeURIComponent(nextApplicantPath)}`;
-        return;
-      }
-      window.location.href = nextApplicantPath;
+      await finishLogin(data.access_token, nextApplicantPath);
     } catch (error) {
       setStatusMessage(getErrorDetail(error, "Sign in failed. Check credentials and use your @northeastern.edu account."));
     } finally {
@@ -176,16 +225,22 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             <p className="mb-3 text-sm text-[#333]">Administrator Sign In (ADMIN only)</p>
           )}
 
-          <label className="mb-3 block text-[13px] text-[#444]">
-            Email
-            <input
-              placeholder="example@northeastern.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
-            />
-          </label>
-          {mode !== "reset" ? (
+          {hostedLoginEnabled && mode === "signin" ? (
+            <p className="mb-3 rounded border border-[#d6e9e3] bg-[#eef8f5] px-3 py-2 text-xs text-[#1f463d]">
+              Sign in is managed by AWS Cognito Hosted UI.
+            </p>
+          ) : (
+            <label className="mb-3 block text-[13px] text-[#444]">
+              Email
+              <input
+                placeholder="example@northeastern.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
+              />
+            </label>
+          )}
+          {mode !== "reset" && (!hostedLoginEnabled || mode !== "signin") ? (
             <label className="mb-3 block text-[13px] text-[#444]">
               Password
               <input
@@ -221,13 +276,21 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
           )}
 
           {mode === "signin" ? (
-            <button
+              <button
               type="button"
               disabled={isBusy}
               onClick={() => void submitSignIn()}
               className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
             >
-              {isBusy ? "Signing In..." : adminMode ? "Sign In as Admin" : "Sign In as Applicant"}
+              {isBusy
+                ? "Signing In..."
+                : hostedLoginEnabled
+                  ? adminMode
+                    ? "Continue to Admin Sign In"
+                    : "Continue to Applicant Sign In"
+                  : adminMode
+                    ? "Sign In as Admin"
+                    : "Sign In as Applicant"}
             </button>
           ) : null}
 

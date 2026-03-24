@@ -358,7 +358,7 @@ export function ProfilePage() {
               </label>
 
               <label className="block max-w-md text-sm">
-                Paid experience count *
+                Paid co-op/internship count *
                 <input
                   type="number"
                   min="0"
@@ -370,7 +370,7 @@ export function ProfilePage() {
               </label>
 
               <label className="block max-w-md text-sm">
-                Unpaid experience count *
+                Unpaid co-op/internship count *
                 <input
                   type="number"
                   min="0"

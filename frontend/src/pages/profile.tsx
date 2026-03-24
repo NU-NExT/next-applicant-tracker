@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { getMyProfile, updateMyProfile } from "../api";
 import { Header } from "../components/header";
@@ -31,8 +31,8 @@ const EMPTY_PROFILE_FORM: ProfileFormState = {
   githubUrl: "",
   linkedinUrl: "",
   clubs: [],
-  paidExperienceCount: "",
-  unpaidExperienceCount: "",
+  paidExperienceCount: "0",
+  unpaidExperienceCount: "0",
 };
 
 const GLOBAL_PROFILE_PROMPTS = {
@@ -110,6 +110,7 @@ export function ProfilePage() {
   const [email, setEmail] = useState("");
   const [profileForm, setProfileForm] = useState<ProfileFormState>(EMPTY_PROFILE_FORM);
   const [statusMessage, setStatusMessage] = useState("");
+  const clubInputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -140,14 +141,10 @@ export function ProfilePage() {
           githubUrl: readString(candidateProfile.github_url, globalProfile[GLOBAL_PROFILE_PROMPTS.githubUrl]),
           linkedinUrl: readString(candidateProfile.linkedin_url, globalProfile[GLOBAL_PROFILE_PROMPTS.linkedinUrl]),
           clubs: readStringList(candidateProfile.clubs, globalProfile[GLOBAL_PROFILE_PROMPTS.clubs]),
-          paidExperienceCount: readString(
-            candidateProfile.paid_experience_count,
-            globalProfile[GLOBAL_PROFILE_PROMPTS.paidExperienceCount]
-          ),
-          unpaidExperienceCount: readString(
-            candidateProfile.unpaid_experience_count,
-            globalProfile[GLOBAL_PROFILE_PROMPTS.unpaidExperienceCount]
-          ),
+          paidExperienceCount:
+            readString(candidateProfile.paid_experience_count, globalProfile[GLOBAL_PROFILE_PROMPTS.paidExperienceCount]) || "0",
+          unpaidExperienceCount:
+            readString(candidateProfile.unpaid_experience_count, globalProfile[GLOBAL_PROFILE_PROMPTS.unpaidExperienceCount]) || "0",
         });
         setStatusMessage("");
       } catch {
@@ -169,6 +166,16 @@ export function ProfilePage() {
 
   const addClub = () => {
     setProfileForm((current) => ({ ...current, clubs: [...current.clubs, ""] }));
+  };
+
+  const insertClubAfter = (index: number) => {
+    setProfileForm((current) => ({
+      ...current,
+      clubs: [...current.clubs.slice(0, index + 1), "", ...current.clubs.slice(index + 1)],
+    }));
+    requestAnimationFrame(() => {
+      clubInputRefs.current[index + 1]?.focus();
+    });
   };
 
   const removeClub = (index: number) => {
@@ -200,7 +207,7 @@ export function ProfilePage() {
       const unpaidExperienceCount = parseOptionalNumber(profileForm.unpaidExperienceCount, "Unpaid experience count");
       const gpa = parseOptionalNumber(profileForm.gpa, "GPA", true);
 
-      if (!fullLegalName || !expectedGraduationDate || !currentYear || !major || gpa === null || paidExperienceCount === null || unpaidExperienceCount === null || clubs.length === 0) {
+      if (!fullLegalName || !expectedGraduationDate || !currentYear || !major || gpa === null || paidExperienceCount === null || unpaidExperienceCount === null) {
         throw new Error("Fill in all required fields before saving.");
       }
 
@@ -358,7 +365,15 @@ export function ProfilePage() {
               </label>
 
               <label className="block max-w-md text-sm">
-                Paid co-op/internship count *
+                <span className="flex items-center gap-2">
+                  <span>Paid co-op/internship count *</span>
+                  <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#b8b8b8] text-[10px] text-[#555]">
+                    ?
+                    <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-56 -translate-x-1/2 rounded border border-[#d0d0d0] bg-white px-2 py-1 text-xs text-[#333] shadow-sm group-hover:block">
+                      Paid co-ops/interships you have completed related to your major
+                    </span>
+                  </span>
+                </span>
                 <input
                   type="number"
                   min="0"
@@ -408,9 +423,9 @@ export function ProfilePage() {
             </div>
 
             <div className="max-w-3xl text-sm">
-              <div className="flex items-center justify-between gap-3">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                 <div>
-                  <p className="font-medium text-[#1f1f1f]">Clubs and extracurricular activities *</p>
+                  <p className="font-medium text-[#1f1f1f]">Clubs and extracurricular activities</p>
                   <p className="text-xs text-[#666]">Add one club per row.</p>
                 </div>
                 <button
@@ -428,13 +443,21 @@ export function ProfilePage() {
                 ) : null}
 
                 {profileForm.clubs.map((club, index) => (
-                  <div key={`club-${index}`} className="flex flex-col gap-2 sm:flex-row">
+                  <div key={`club-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                     <input
+                      ref={(element) => {
+                        clubInputRefs.current[index] = element;
+                      }}
                       value={club}
                       onChange={(e) => updateClub(index, e.target.value)}
-                      className="w-full max-w-xl rounded border border-[#d0d0d0] px-3 py-2"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          insertClubAfter(index);
+                        }
+                      }}
+                      className="w-full rounded border border-[#d0d0d0] px-3 py-2"
                       placeholder="Club or extracurricular"
-                      required
                     />
                     <button
                       type="button"

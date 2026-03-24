@@ -20,6 +20,7 @@ from app.models.models import (
     ApplicationReviewScore,
     ApplicationSubmission,
     JobListing,
+    ScoreValue,
     User,
 )
 from app.services.storage import storage_service
@@ -72,10 +73,10 @@ def search_candidates(
     token = require_bearer_token(authorization)
     ensure_admin_user(db, token)
 
-    submissions = db.query(ApplicationSubmission).order_by(ApplicationSubmission.created_at.desc()).all()
+    submissions = db.query(ApplicationSubmission).order_by(ApplicationSubmission.application_submission_created_at.desc()).all()
     rows: list[CandidateReviewSearchRow] = []
     for submission in submissions:
-        position_row = db.query(JobListing).filter(JobListing.id == submission.job_listing_id).first()
+        position_row = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
         snapshot = submission.profile_snapshot_json or {}
         global_profile = _get_global_fields(snapshot)
 
@@ -113,7 +114,7 @@ def search_candidates(
 
         rows.append(
             CandidateReviewSearchRow(
-                submission_id=submission.id,
+                submission_id=submission.application_submission_id,
                 candidate_name=candidate_name_value,
                 candidate_email=email_value,
                 major=major_value or None,
@@ -140,10 +141,14 @@ def get_review_detail(
     if not viewer.is_active:
         raise HTTPException(status_code=403, detail="Active account required.")
 
-    submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
+    submission = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.application_submission_id == submission_id)
+        .first()
+    )
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
-    position = db.query(JobListing).filter(JobListing.id == submission.job_listing_id).first()
+    position = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
     if position is None:
         raise HTTPException(status_code=404, detail="Position not found")
 
@@ -157,44 +162,46 @@ def get_review_detail(
 
     score_rows = (
         db.query(ApplicationReviewScore)
-        .filter(ApplicationReviewScore.application_submission_id == submission.id)
-        .order_by(ApplicationReviewScore.created_at.desc())
+        .filter(ApplicationReviewScore.application_submission_id == submission.application_submission_id)
+        .order_by(ApplicationReviewScore.application_review_score_created_at.desc())
         .all()
     )
     comment_rows = (
         db.query(ApplicationReviewComment)
-        .filter(ApplicationReviewComment.application_submission_id == submission.id)
-        .order_by(ApplicationReviewComment.created_at.desc())
+        .filter(ApplicationReviewComment.application_submission_id == submission.application_submission_id)
+        .order_by(ApplicationReviewComment.application_review_comment_created_at.desc())
         .all()
     )
 
     scores: list[ApplicationReviewScoreRead] = []
     for row in score_rows:
-        reviewer = db.query(User).filter(User.id == row.reviewer_user_id).first()
+        reviewer = db.query(User).filter(User.user_id == row.reviewer_user_id).first()
+        score_value = db.query(ScoreValue).filter(ScoreValue.score_value_id == row.score_value_id).first()
         reviewer_name = f"{reviewer.first_name} {reviewer.last_name}".strip() if reviewer else f"Reviewer {row.reviewer_user_id}"
         scores.append(
             ApplicationReviewScoreRead(
-                id=row.id,
+                application_review_score_id=row.application_review_score_id,
                 application_submission_id=row.application_submission_id,
                 reviewer_user_id=row.reviewer_user_id,
                 reviewer_name=reviewer_name,
-                score=row.score,
-                created_at=row.created_at,
+                score_value_id=row.score_value_id,
+                score=score_value.value if score_value else None,
+                application_review_score_created_at=row.application_review_score_created_at,
             )
         )
 
     comments: list[ApplicationReviewCommentRead] = []
     for row in comment_rows:
-        reviewer = db.query(User).filter(User.id == row.reviewer_user_id).first()
+        reviewer = db.query(User).filter(User.user_id == row.reviewer_user_id).first()
         reviewer_name = f"{reviewer.first_name} {reviewer.last_name}".strip() if reviewer else f"Reviewer {row.reviewer_user_id}"
         comments.append(
             ApplicationReviewCommentRead(
-                id=row.id,
+                application_review_comment_id=row.application_review_comment_id,
                 application_submission_id=row.application_submission_id,
                 reviewer_user_id=row.reviewer_user_id,
                 reviewer_name=reviewer_name,
                 comment=row.comment,
-                created_at=row.created_at,
+                application_review_comment_created_at=row.application_review_comment_created_at,
             )
         )
 
@@ -206,7 +213,7 @@ def get_review_detail(
     return CandidateReviewDetail(
         submission=submission,
         position_title=position.position_title,
-        position_code=position.position_code,
+        position_code=position.code_id,
         global_profile_fields=_get_global_fields(submission.profile_snapshot_json or {}),
         position_question_answers=answers,
         resume_view_url=resume_url,
@@ -224,26 +231,40 @@ def add_score(
 ) -> ApplicationReviewScoreRead:
     token = require_bearer_token(authorization)
     reviewer = ensure_admin_user(db, token)
-    submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
+    submission = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.application_submission_id == submission_id)
+        .first()
+    )
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
+    score_value_id = payload.score_value_id
+    if score_value_id is None and payload.score is not None:
+        existing_value = db.query(ScoreValue).filter(ScoreValue.value == payload.score).first()
+        if existing_value is not None:
+            score_value_id = existing_value.score_value_id
+    if score_value_id is None:
+        raise HTTPException(status_code=400, detail="score_value_id or a valid score is required")
+
     score = ApplicationReviewScore(
         application_submission_id=submission_id,
-        reviewer_user_id=reviewer.id,
-        score=payload.score,
+        reviewer_user_id=reviewer.user_id,
+        score_value_id=score_value_id,
     )
     db.add(score)
     submission.status = "scored"
     db.add(submission)
     db.commit()
     db.refresh(score)
+    score_value = db.query(ScoreValue).filter(ScoreValue.score_value_id == score.score_value_id).first()
     return ApplicationReviewScoreRead(
-        id=score.id,
+        application_review_score_id=score.application_review_score_id,
         application_submission_id=score.application_submission_id,
         reviewer_user_id=score.reviewer_user_id,
         reviewer_name=f"{reviewer.first_name} {reviewer.last_name}".strip(),
-        score=score.score,
-        created_at=score.created_at,
+        score_value_id=score.score_value_id,
+        score=score_value.value if score_value else None,
+        application_review_score_created_at=score.application_review_score_created_at,
     )
 
 
@@ -256,12 +277,16 @@ def add_comment(
 ) -> ApplicationReviewCommentRead:
     token = require_bearer_token(authorization)
     reviewer = ensure_admin_user(db, token)
-    submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
+    submission = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.application_submission_id == submission_id)
+        .first()
+    )
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
     comment = ApplicationReviewComment(
         application_submission_id=submission_id,
-        reviewer_user_id=reviewer.id,
+        reviewer_user_id=reviewer.user_id,
         comment=payload.comment,
     )
     db.add(comment)
@@ -271,10 +296,10 @@ def add_comment(
     db.commit()
     db.refresh(comment)
     return ApplicationReviewCommentRead(
-        id=comment.id,
+        application_review_comment_id=comment.application_review_comment_id,
         application_submission_id=comment.application_submission_id,
         reviewer_user_id=comment.reviewer_user_id,
         reviewer_name=f"{reviewer.first_name} {reviewer.last_name}".strip(),
         comment=comment.comment,
-        created_at=comment.created_at,
+        application_review_comment_created_at=comment.application_review_comment_created_at,
     )

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -35,7 +34,7 @@ GLOBAL_FIELD_PROMPTS = {
 
 @router.get("", response_model=list[ApplicationSubmissionRead])
 def list_repository_requests(db: Session = Depends(get_db)) -> list[ApplicationSubmission]:
-    return db.query(ApplicationSubmission).order_by(ApplicationSubmission.created_at.desc()).all()
+    return db.query(ApplicationSubmission).order_by(ApplicationSubmission.application_submission_created_at.desc()).all()
 
 
 @router.get("/me", response_model=list[ApplicationSubmissionRead])
@@ -48,7 +47,7 @@ def list_my_repository_requests(
     return (
         db.query(ApplicationSubmission)
         .filter(ApplicationSubmission.applicant_email == user.email)
-        .order_by(ApplicationSubmission.created_at.desc())
+        .order_by(ApplicationSubmission.application_submission_created_at.desc())
         .all()
     )
 
@@ -84,21 +83,25 @@ def create_repository_request(
     token = require_bearer_token(authorization)
     user = get_or_create_user_from_access_token(db, token)
     resolved_job_listing_id = payload.job_listing_id
-    if resolved_job_listing_id is None and payload.position_code:
-        by_code = db.query(JobListing).filter(JobListing.position_code == payload.position_code.strip().upper()).first()
+    if resolved_job_listing_id is None and payload.job_listing_slug:
+        by_slug = db.query(JobListing).filter(JobListing.listing_slug == payload.job_listing_slug.strip()).first()
+        if by_slug is not None:
+            resolved_job_listing_id = by_slug.listing_id
+    if resolved_job_listing_id is None and payload.job_listing_slug:
+        by_code = db.query(JobListing).filter(JobListing.code_id == payload.job_listing_slug.strip().upper()).first()
         if by_code is not None:
-            resolved_job_listing_id = by_code.id
+            resolved_job_listing_id = by_code.listing_id
 
     if resolved_job_listing_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_listing_id or position_code is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_listing_id or job_listing_slug is required")
 
-    job_listing = db.query(JobListing).filter(JobListing.id == resolved_job_listing_id).first()
+    job_listing = db.query(JobListing).filter(JobListing.listing_id == resolved_job_listing_id).first()
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
 
     payload_data = payload.model_dump()
     payload_data["job_listing_id"] = resolved_job_listing_id
-    payload_data.pop("position_code", None)
+    payload_data.pop("job_listing_slug", None)
     if not payload_data.get("status"):
         payload_data["status"] = "applied"
     payload_data["applicant_email"] = user.email
@@ -136,7 +139,6 @@ def create_repository_request(
     submission = ApplicationSubmission(
         **payload_data,
         profile_snapshot_json=snapshot,
-        created_at=datetime.utcnow(),
     )
     db.add(submission)
     db.commit()
@@ -153,7 +155,11 @@ def update_repository_request_status(
 ) -> ApplicationSubmission:
     token = require_bearer_token(authorization)
     ensure_admin_user(db, token)
-    submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
+    submission = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.application_submission_id == submission_id)
+        .first()
+    )
     if submission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     submission.status = payload.status
@@ -171,7 +177,11 @@ def get_resume_view_url(
 ) -> dict[str, str]:
     token = require_bearer_token(authorization)
     user = get_or_create_user_from_access_token(db, token)
-    submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
+    submission = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.application_submission_id == submission_id)
+        .first()
+    )
     if submission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     if not user.is_admin and submission.applicant_email != user.email:

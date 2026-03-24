@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -22,7 +24,7 @@ def list_field_options(
     query = db.query(FieldOption)
     if category:
         query = query.filter(FieldOption.category == category.strip().lower())
-    return query.order_by(FieldOption.category.asc(), FieldOption.sort_order.asc(), FieldOption.id.asc()).all()
+    return query.order_by(FieldOption.category.asc(), FieldOption.sort_order.asc(), FieldOption.field_option_id.asc()).all()
 
 
 @router.post("", response_model=FieldOptionRead, status_code=status.HTTP_201_CREATED)
@@ -52,7 +54,7 @@ def update_field_option(
     db: Session = Depends(get_db),
 ) -> FieldOption:
     _assert_admin_from_db(authorization, db)
-    option = db.query(FieldOption).filter(FieldOption.id == option_id).first()
+    option = db.query(FieldOption).filter(FieldOption.field_option_id == option_id).first()
     if option is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field option not found")
     updates: dict[str, Any] = payload.model_dump(exclude_unset=True)
@@ -73,7 +75,7 @@ def delete_field_option(
     db: Session = Depends(get_db),
 ) -> None:
     _assert_admin_from_db(authorization, db)
-    option = db.query(FieldOption).filter(FieldOption.id == option_id).first()
+    option = db.query(FieldOption).filter(FieldOption.field_option_id == option_id).first()
     if option is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field option not found")
     db.delete(option)

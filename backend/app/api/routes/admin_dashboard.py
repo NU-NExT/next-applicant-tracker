@@ -16,7 +16,7 @@ def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str |
     submissions = (
         db.query(ApplicationSubmission)
         .filter(ApplicationSubmission.status.in_(["submitted", "in_review"]))
-        .order_by(ApplicationSubmission.created_at.desc())
+        .order_by(ApplicationSubmission.application_submission_created_at.desc())
         .all()
     )
 
@@ -24,12 +24,14 @@ def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str |
         lambda: {"job": "", "status": "submitted", "date_opened": "", "total_submissions": 0}
     )
     for submission in submissions:
-        job_listing = db.query(JobListing).filter(JobListing.id == submission.job_listing_id).first()
+        job_listing = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
         row = grouped[submission.job_listing_id]
         row["job"] = job_listing.job if job_listing else f"Listing {submission.job_listing_id}"
         row["status"] = submission.status
         row["date_opened"] = (
-            job_listing.date_created.date().isoformat() if job_listing else submission.created_at.date().isoformat()
+            job_listing.listing_date_created.date().isoformat()
+            if job_listing
+            else submission.application_submission_created_at.date().isoformat()
         )
         row["total_submissions"] = int(row["total_submissions"]) + 1
     return [dict(v) for v in grouped.values()]
@@ -40,18 +42,18 @@ def get_past_applications(db: Session = Depends(get_db)) -> list[dict[str, str]]
     submissions = (
         db.query(ApplicationSubmission)
         .filter(ApplicationSubmission.status.in_(["closed", "rejected", "accepted"]))
-        .order_by(ApplicationSubmission.created_at.desc())
+        .order_by(ApplicationSubmission.application_submission_created_at.desc())
         .all()
     )
 
     results: list[dict[str, str]] = []
     for submission in submissions:
-        job_listing = db.query(JobListing).filter(JobListing.id == submission.job_listing_id).first()
+        job_listing = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
         results.append(
             {
                 "job": job_listing.job if job_listing else f"Listing {submission.job_listing_id}",
                 "status": submission.status,
-                "date_closed": submission.created_at.date().isoformat(),
+                "date_closed": submission.application_submission_created_at.date().isoformat(),
             }
         )
     return results

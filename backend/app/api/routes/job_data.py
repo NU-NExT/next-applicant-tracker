@@ -15,7 +15,7 @@ def list_job_data(db: Session = Depends(get_db)) -> list[JobMetadata]:
 
 @router.get("/{job_id}", response_model=JobMetadataRead)
 def get_job_data(job_id: int, db: Session = Depends(get_db)) -> JobMetadata:
-    job = db.query(JobMetadata).filter(JobMetadata.id == job_id).first()
+    job = db.query(JobMetadata).filter(JobMetadata.metadata_id == job_id).first()
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job metadata not found")
     return job
@@ -32,7 +32,7 @@ def create_job_data(payload: JobMetadataCreate, db: Session = Depends(get_db)) -
 
 @router.put("/{job_id}", response_model=JobMetadataRead)
 def update_job_data(job_id: int, payload: JobMetadataCreate, db: Session = Depends(get_db)) -> JobMetadata:
-    job = db.query(JobMetadata).filter(JobMetadata.id == job_id).first()
+    job = db.query(JobMetadata).filter(JobMetadata.metadata_id == job_id).first()
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job metadata not found")
 
@@ -46,7 +46,7 @@ def update_job_data(job_id: int, payload: JobMetadataCreate, db: Session = Depen
 
 @router.patch("/{job_id}", response_model=JobMetadataRead)
 def patch_job_data(job_id: int, payload: JobMetadataUpdate, db: Session = Depends(get_db)) -> JobMetadata:
-    job = db.query(JobMetadata).filter(JobMetadata.id == job_id).first()
+    job = db.query(JobMetadata).filter(JobMetadata.metadata_id == job_id).first()
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job metadata not found")
 
@@ -60,7 +60,7 @@ def patch_job_data(job_id: int, payload: JobMetadataUpdate, db: Session = Depend
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_job_data(job_id: int, db: Session = Depends(get_db)) -> None:
-    job = db.query(JobMetadata).filter(JobMetadata.id == job_id).first()
+    job = db.query(JobMetadata).filter(JobMetadata.metadata_id == job_id).first()
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job metadata not found")
 

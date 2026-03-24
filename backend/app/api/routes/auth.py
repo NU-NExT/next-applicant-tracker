@@ -8,10 +8,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.authn import ensure_admin_user, is_cognito_enabled, require_bearer_token
+from app.api.authn import ensure_admin_user, require_bearer_token
 from app.config import settings
 from app.db import get_db
 from app.models.models import User
+from app.security.passwords import hash_password
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -53,11 +54,16 @@ def _get_cognito_client():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Cognito is not configured on the server.",
         )
+    client_kwargs: dict[str, str] = {
+        "region_name": settings.aws_region,
+        "aws_access_key_id": settings.aws_access_key_id,
+        "aws_secret_access_key": settings.aws_secret_access_key,
+    }
+    if settings.aws_session_token:
+        client_kwargs["aws_session_token"] = settings.aws_session_token
     return boto3.client(
         "cognito-idp",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
+        **client_kwargs,
     )
 
 
@@ -72,6 +78,12 @@ def _northeastern_username_from_email(raw_email: str) -> tuple[str, str]:
     if not username:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Northeastern email.")
     return email, username
+
+
+def _cognito_username(email: str, username: str) -> str:
+    # This project configures Cognito to use email-style usernames.
+    # Keep local `username` for internal metadata, but send email to Cognito APIs.
+    return email
 
 
 def _secret_hash(username: str) -> str | None:
@@ -92,46 +104,86 @@ def _is_admin_user(cognito: Any, access_token: str, db: Session) -> tuple[bool, 
         username = user_resp.get("Username")
         if not username:
             return False, None
-        email = f"{username}@northeastern.edu"
+        attrs = _attributes_map(user_resp.get("UserAttributes"))
+        email = attrs.get("email", username if "@" in username else f"{username}@northeastern.edu").strip().lower()
         user = db.query(User).filter(User.email == email).first()
         return bool(user and user.is_admin), username
     except ClientError:
         return False, None
 
 
+def _attributes_map(attributes: list[dict[str, str]] | None) -> dict[str, str]:
+    mapped: dict[str, str] = {}
+    for row in attributes or []:
+        key = row.get("Name")
+        value = row.get("Value")
+        if key and value is not None:
+            mapped[key] = value
+    return mapped
+
+
+def _cognito_profile(cognito: Any, access_token: str) -> dict[str, str]:
+    response = cognito.get_user(AccessToken=access_token)
+    username = response.get("Username", "").strip()
+    attrs = _attributes_map(response.get("UserAttributes"))
+    email = attrs.get("email", f"{username}@northeastern.edu").strip().lower()
+    first_name = (attrs.get("given_name") or username or email.split("@", 1)[0]).strip()
+    last_name = (attrs.get("family_name") or "Applicant").strip()
+    return {
+        "username": username or email.split("@", 1)[0],
+        "email": email,
+        "first_name": first_name or "Applicant",
+        "last_name": last_name or "Applicant",
+    }
+
+
+def _upsert_cognito_user(
+    db: Session,
+    *,
+    email: str,
+    username: str,
+    raw_password: str | None = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+) -> User:
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        user = User(
+            email=email,
+            password=hash_password(raw_password or f"cognito-managed::{username}"),
+            first_name=first_name or username,
+            last_name=last_name or "Applicant",
+            is_admin=False,
+            is_active=True,
+            user_metadata={"auth_provider": "cognito", "username": username},
+        )
+    else:
+        if raw_password:
+            user.password = hash_password(raw_password)
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        merged = dict(user.user_metadata or {})
+        merged.update({"auth_provider": "cognito", "username": username})
+        user.user_metadata = merged
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 @router.post("/register-applicant")
 def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depends(get_db)):
     email, username = _northeastern_username_from_email(payload.email)
-    if not is_cognito_enabled():
-        existing = db.query(User).filter(User.email == email).first()
-        if existing is None:
-            existing = User(
-                email=email,
-                password=payload.password,
-                first_name=username,
-                last_name="Applicant",
-                is_admin=False,
-                is_active=True,
-                user_metadata={"auth_provider": "local-fallback", "username": username},
-            )
-            db.add(existing)
-        else:
-            existing.password = payload.password
-            existing.is_active = True
-            merged = dict(existing.user_metadata or {})
-            merged.update({"auth_provider": "local-fallback", "username": username})
-            existing.user_metadata = merged
-            db.add(existing)
-        db.commit()
-        return {"message": "Applicant registration submitted (local fallback).", "username": username}
-
+    cognito_username = _cognito_username(email, username)
     cognito = _get_cognito_client()
-    hash_value = _secret_hash(username)
+    hash_value = _secret_hash(cognito_username)
 
     try:
         sign_up_payload: dict[str, Any] = {
             "ClientId": settings.cognito_app_client_id,
-            "Username": username,
+            "Username": cognito_username,
             "Password": payload.password,
             "UserAttributes": [
                 {"Name": "email", "Value": email},
@@ -154,63 +206,17 @@ def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depe
             detail="Unable to reach Cognito service. Verify AWS/Cognito configuration.",
         ) from exc
 
-    existing = db.query(User).filter(User.email == email).first()
-    if existing is None:
-        local = email.split("@", 1)[0]
-        existing = User(
-            email=email,
-            password="<cognito-managed>",
-            first_name=local,
-            last_name="Applicant",
-            is_admin=False,
-            user_metadata={"auth_provider": "cognito", "username": username},
-        )
-        db.add(existing)
-    else:
-        merged = dict(existing.user_metadata or {})
-        merged.update({"auth_provider": "cognito", "username": username})
-        existing.user_metadata = merged
-        db.add(existing)
-    db.commit()
+    _upsert_cognito_user(db, email=email, username=username, raw_password=payload.password)
     return {"message": "Applicant registration submitted.", "username": username}
 
 
 @router.post("/login")
 def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
     email, username = _northeastern_username_from_email(payload.email)
-    if not is_cognito_enabled():
-        user = db.query(User).filter(User.email == email).first()
-        if user is None or user.password != payload.password:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
-        if not user.is_active:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated.")
-        if payload.admin_mode and not user.is_admin:
-            active_admin = db.query(User).filter(User.is_admin.is_(True), User.is_active.is_(True)).first()
-            if active_admin is None:
-                user.is_admin = True
-                merged = dict(user.user_metadata or {})
-                merged.update({"role": "ADMIN", "auth_provider": "local-fallback"})
-                user.user_metadata = merged
-                db.add(user)
-                db.commit()
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Administrator access is restricted to ADMIN accounts.",
-                )
-
-        return {
-            "access_token": f"local:{email}",
-            "id_token": f"local:{email}",
-            "refresh_token": None,
-            "expires_in": 3600 * 24 * 30,
-            "token_type": "Bearer",
-            "username": username,
-        }
-
+    cognito_username = _cognito_username(email, username)
     cognito = _get_cognito_client()
-    auth_parameters = {"USERNAME": username, "PASSWORD": payload.password}
-    hash_value = _secret_hash(username)
+    auth_parameters = {"USERNAME": cognito_username, "PASSWORD": payload.password}
+    hash_value = _secret_hash(cognito_username)
     if hash_value:
         auth_parameters["SECRET_HASH"] = hash_value
 
@@ -227,35 +233,27 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
             detail=exc.response.get("Error", {}).get("Message", "Invalid credentials."),
         ) from exc
 
+    access_token = result.get("AccessToken")
+    if not access_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access token.")
+    profile = _cognito_profile(cognito, access_token)
+    _upsert_cognito_user(
+        db,
+        email=profile["email"],
+        username=profile["username"],
+        raw_password=payload.password,
+        first_name=profile["first_name"],
+        last_name=profile["last_name"],
+    )
+
     if payload.admin_mode:
-        access_token = result.get("AccessToken")
-        if not access_token:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access token.")
         is_admin, _ = _is_admin_user(cognito, access_token, db)
         if not is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Administrator access is restricted to ADMIN accounts.",
             )
-    else:
-        user = db.query(User).filter(User.email == email).first()
-        if user is None:
-            user = User(
-                email=email,
-                password="<cognito-managed>",
-                first_name=username,
-                last_name="Applicant",
-                is_admin=False,
-                user_metadata={"auth_provider": "cognito", "username": username},
-            )
-        else:
-            merged = dict(user.user_metadata or {})
-            merged.update({"auth_provider": "cognito", "username": username})
-            user.user_metadata = merged
-        db.add(user)
-        db.commit()
-
-    active_user = db.query(User).filter(User.email == email).first()
+    active_user = db.query(User).filter(User.email == profile["email"]).first()
     if active_user is not None and not active_user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated.")
 
@@ -271,14 +269,13 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/forgot-password")
 def forgot_password(payload: AuthForgotPasswordRequest):
-    _, username = _northeastern_username_from_email(payload.email)
-    if not is_cognito_enabled():
-        return {"message": "Local fallback mode enabled. Use confirm reset to set a new password directly."}
+    email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
     cognito = _get_cognito_client()
-    hash_value = _secret_hash(username)
+    hash_value = _secret_hash(cognito_username)
     request_payload: dict[str, Any] = {
         "ClientId": settings.cognito_app_client_id,
-        "Username": username,
+        "Username": cognito_username,
     }
     if hash_value:
         request_payload["SecretHash"] = hash_value
@@ -297,20 +294,12 @@ def forgot_password(payload: AuthForgotPasswordRequest):
 @router.post("/confirm-forgot-password")
 def confirm_forgot_password(payload: AuthConfirmForgotPasswordRequest, db: Session = Depends(get_db)):
     email, username = _northeastern_username_from_email(payload.email)
-    if not is_cognito_enabled():
-        user = db.query(User).filter(User.email == email).first()
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
-        user.password = payload.new_password
-        db.add(user)
-        db.commit()
-        return {"message": "Password has been reset successfully."}
-
+    cognito_username = _cognito_username(email, username)
     cognito = _get_cognito_client()
-    hash_value = _secret_hash(username)
+    hash_value = _secret_hash(cognito_username)
     request_payload: dict[str, Any] = {
         "ClientId": settings.cognito_app_client_id,
-        "Username": username,
+        "Username": cognito_username,
         "ConfirmationCode": payload.confirmation_code,
         "Password": payload.new_password,
     }
@@ -325,6 +314,7 @@ def confirm_forgot_password(payload: AuthConfirmForgotPasswordRequest, db: Sessi
             detail=exc.response.get("Error", {}).get("Message", "Failed to reset password."),
         ) from exc
 
+    _upsert_cognito_user(db, email=email, username=username, raw_password=payload.new_password)
     return {"message": "Password has been reset successfully."}
 
 
@@ -335,35 +325,9 @@ def create_admin(
     db: Session = Depends(get_db),
 ):
     email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
     access_token = require_bearer_token(authorization)
     ensure_admin_user(db, access_token)
-    if not is_cognito_enabled():
-        user = db.query(User).filter(User.email == email).first()
-        name_parts = payload.name.strip().split(" ", 1)
-        first_name = name_parts[0] if name_parts else username
-        last_name = name_parts[1] if len(name_parts) > 1 else "Admin"
-        if user is None:
-            user = User(
-                email=email,
-                password="<local-fallback-set-password-via-reset>",
-                first_name=first_name,
-                last_name=last_name,
-                is_admin=True,
-                is_active=True,
-                user_metadata={"auth_provider": "local-fallback", "username": username, "role": "ADMIN"},
-            )
-        else:
-            user.first_name = first_name
-            user.last_name = last_name
-            user.is_admin = True
-            user.is_active = True
-            merged = dict(user.user_metadata or {})
-            merged.update({"auth_provider": "local-fallback", "username": username, "role": "ADMIN"})
-            user.user_metadata = merged
-        db.add(user)
-        db.commit()
-        return {"message": "ADMIN account created successfully (local fallback).", "username": username}
-
     cognito = _get_cognito_client()
 
     try:
@@ -372,7 +336,7 @@ def create_admin(
         family_name = name_parts[1] if len(name_parts) > 1 else "Admin"
         cognito.admin_create_user(
             UserPoolId=settings.cognito_user_pool_id,
-            Username=username,
+            Username=cognito_username,
             UserAttributes=[
                 {"Name": "email", "Value": email},
                 {"Name": "email_verified", "Value": "true"},
@@ -392,7 +356,7 @@ def create_admin(
     try:
         cognito.admin_add_user_to_group(
             UserPoolId=settings.cognito_user_pool_id,
-            Username=username,
+            Username=cognito_username,
             GroupName=settings.cognito_admin_group_name,
         )
     except ClientError as exc:
@@ -408,7 +372,7 @@ def create_admin(
         last_name = name_parts[1] if len(name_parts) > 1 else "Admin"
         user = User(
             email=email,
-            password="<cognito-managed>",
+            password=hash_password(f"cognito-managed::{username}"),
             first_name=first_name,
             last_name=last_name,
             is_admin=True,
@@ -431,23 +395,15 @@ def deactivate_admin(
     db: Session = Depends(get_db),
 ):
     email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
     access_token = require_bearer_token(authorization)
     ensure_admin_user(db, access_token)
-    if not is_cognito_enabled():
-        user = db.query(User).filter(User.email == email).first()
-        if user:
-            user.is_admin = False
-            user.is_active = False
-            db.add(user)
-            db.commit()
-        return {"message": "ADMIN account deactivated (local fallback).", "username": username}
-
     cognito = _get_cognito_client()
 
     try:
         cognito.admin_remove_user_from_group(
             UserPoolId=settings.cognito_user_pool_id,
-            Username=username,
+            Username=cognito_username,
             GroupName=settings.cognito_admin_group_name,
         )
     except ClientError:
@@ -456,7 +412,7 @@ def deactivate_admin(
     try:
         cognito.admin_disable_user(
             UserPoolId=settings.cognito_user_pool_id,
-            Username=username,
+            Username=cognito_username,
         )
     except ClientError:
         pass

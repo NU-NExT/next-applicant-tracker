@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     aws_access_key_id: str = "test"
     aws_secret_access_key: str = "test"
+    aws_session_token: str | None = None
     s3_endpoint_url: str | None = None
     s3_bucket_resumes: str = "application-tracker-resumes"
     s3_bucket_transcripts: str = "application-tracker-transcripts"

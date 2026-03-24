@@ -6,10 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.models import User
-
-
-def is_cognito_enabled() -> bool:
-    return bool(settings.cognito_user_pool_id and settings.cognito_app_client_id)
+from app.security.passwords import hash_password
 
 
 def require_bearer_token(authorization: str | None) -> str:
@@ -22,27 +19,30 @@ def require_bearer_token(authorization: str | None) -> str:
 
 
 def cognito_client():
+    client_kwargs: dict[str, str] = {
+        "region_name": settings.aws_region,
+        "aws_access_key_id": settings.aws_access_key_id,
+        "aws_secret_access_key": settings.aws_secret_access_key,
+    }
+    if settings.aws_session_token:
+        client_kwargs["aws_session_token"] = settings.aws_session_token
     return boto3.client(
         "cognito-idp",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
+        **client_kwargs,
     )
 
 
-def get_identity_from_token(access_token: str) -> dict[str, str]:
-    if not is_cognito_enabled():
-        if not access_token.startswith("local:"):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid local access token.")
-        email = access_token.removeprefix("local:").strip().lower()
-        if not email.endswith("@northeastern.edu"):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid local access token.")
-        username = email.split("@", 1)[0]
-        return {
-            "username": username,
-            "email": email,
-        }
+def _attributes_map(attributes: list[dict[str, str]] | None) -> dict[str, str]:
+    mapped: dict[str, str] = {}
+    for row in attributes or []:
+        key = row.get("Name")
+        value = row.get("Value")
+        if key and value is not None:
+            mapped[key] = value
+    return mapped
 
+
+def get_identity_from_token(access_token: str) -> dict[str, str]:
     client = cognito_client()
     try:
         response = client.get_user(AccessToken=access_token)
@@ -51,9 +51,16 @@ def get_identity_from_token(access_token: str) -> dict[str, str]:
     username = response.get("Username")
     if not username:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access token.")
+    attrs = _attributes_map(response.get("UserAttributes"))
+    fallback_email = username if "@" in username else f"{username}@northeastern.edu"
+    email = attrs.get("email", fallback_email).strip().lower()
+    given_name = attrs.get("given_name") or username
+    family_name = attrs.get("family_name") or "Applicant"
     return {
         "username": username,
-        "email": f"{username}@northeastern.edu",
+        "email": email,
+        "first_name": given_name,
+        "last_name": family_name,
     }
 
 
@@ -64,11 +71,13 @@ def get_or_create_user_from_access_token(db: Session, access_token: str, *, defa
     if user is not None:
         return user
     username = identity["username"]
+    first_name = identity["first_name"]
+    last_name = identity["last_name"]
     user = User(
         email=email,
-        password="<cognito-managed>",
-        first_name=username,
-        last_name="Applicant",
+        password=hash_password(f"cognito-managed::{username}"),
+        first_name=first_name,
+        last_name=last_name,
         is_admin=default_admin,
         user_metadata={"auth_provider": "cognito", "username": username},
     )
@@ -84,18 +93,6 @@ def ensure_admin_user(db: Session, access_token: str) -> User:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN privileges required.")
     if user.is_admin:
         return user
-
-    if not is_cognito_enabled():
-        active_admin = db.query(User).filter(User.is_admin.is_(True), User.is_active.is_(True)).first()
-        if active_admin is None:
-            user.is_admin = True
-            merged = dict(user.user_metadata or {})
-            merged.update({"role": "ADMIN", "auth_provider": "local-fallback"})
-            user.user_metadata = merged
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            return user
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN privileges required.")
 

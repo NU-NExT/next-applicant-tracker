@@ -16,6 +16,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_profile" {
+  type        = string
+  description = "AWS CLI profile for Terraform authentication"
+  default     = ""
+}
+
 variable "vpc_cidr" {
   type    = string
   default = "10.20.0.0/16"
@@ -105,7 +111,7 @@ variable "cognito_admin_group_name" {
 
 variable "cognito_domain_prefix" {
   type        = string
-  description = "Prefix for Cognito Hosted UI domain (must be globally unique per region)"
+  description = "Base prefix for Cognito Hosted UI domain; Terraform appends a stable random suffix"
   default     = "application-tracker-dev-auth"
 }
 

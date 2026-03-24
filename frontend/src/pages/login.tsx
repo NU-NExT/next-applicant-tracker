@@ -4,7 +4,6 @@ import axios from "axios";
 import {
   authConfirmForgotPassword,
   authForgotPassword,
-  authLogin,
   authRegisterApplicant,
   getMyProfile,
 } from "../api";
@@ -92,35 +91,15 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
   }, [hostedLoginEnabled]);
 
   const submitSignIn = async () => {
-    if (hostedLoginEnabled) {
-      setIsBusy(true);
-      setStatusMessage("");
-      try {
-        await beginHostedLogin({ adminMode, nextPath: nextApplicantPath });
-      } catch (error) {
-        setStatusMessage(getErrorDetail(error, "Unable to start Cognito hosted login."));
-      } finally {
-        setIsBusy(false);
-      }
-      return;
-    }
-
     setIsBusy(true);
     setStatusMessage("");
     try {
-      const data = await authLogin({
-        email,
-        password,
-        admin_mode: adminMode,
-      });
-      localStorage.setItem("auth_access_token", data.access_token);
-      localStorage.setItem("auth_id_token", data.id_token);
-      if (data.refresh_token) {
-        localStorage.setItem("auth_refresh_token", data.refresh_token);
+      if (!hostedLoginEnabled) {
+        throw new Error("Cognito Hosted UI is not configured in frontend environment.");
       }
-      await finishLogin(data.access_token, nextApplicantPath);
+      await beginHostedLogin({ adminMode, nextPath: nextApplicantPath });
     } catch (error) {
-      setStatusMessage(getErrorDetail(error, "Sign in failed. Check credentials and use your @northeastern.edu account."));
+      setStatusMessage(getErrorDetail(error, "Unable to start Cognito hosted login."));
     } finally {
       setIsBusy(false);
     }
@@ -229,6 +208,10 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             <p className="mb-3 rounded border border-[#d6e9e3] bg-[#eef8f5] px-3 py-2 text-xs text-[#1f463d]">
               Sign in is managed by AWS Cognito Hosted UI.
             </p>
+          ) : mode === "signin" ? (
+            <p className="mb-3 rounded border border-[#efd4d4] bg-[#fff1f1] px-3 py-2 text-xs text-[#722]">
+              Cognito Hosted UI is not configured. Set `VITE_COGNITO_DOMAIN` and `VITE_COGNITO_CLIENT_ID`.
+            </p>
           ) : (
             <label className="mb-3 block text-[13px] text-[#444]">
               Email
@@ -240,18 +223,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               />
             </label>
           )}
-          {mode !== "reset" && (!hostedLoginEnabled || mode !== "signin") ? (
-            <label className="mb-3 block text-[13px] text-[#444]">
-              Password
-              <input
-                type="password"
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
-              />
-            </label>
-          ) : (
+          {mode === "reset" ? (
             <>
               <label className="mb-3 block text-[13px] text-[#444]">
                 Verification Code
@@ -273,7 +245,18 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
                 />
               </label>
             </>
-          )}
+          ) : mode !== "signin" ? (
+            <label className="mb-3 block text-[13px] text-[#444]">
+              Password
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
+              />
+            </label>
+          ) : null}
 
           {mode === "signin" ? (
               <button
@@ -348,7 +331,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             <div className="mt-4 border-t border-[#ececec] pt-3">
               <p className="text-xs font-semibold text-[#444]">Temporary Dashboard Hooks</p>
               <p className="mt-1 text-xs text-[#666]">
-                Use these while Cognito fallback mode is enabled.
+                Use these only for temporary non-auth UI navigation.
               </p>
               <button
                 type="button"

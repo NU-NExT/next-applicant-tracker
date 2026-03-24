@@ -1,6 +1,8 @@
 project_name = "application-tracker"
 environment  = "dev"
 aws_region   = "us-east-1"
+# Optional: set this to force a named AWS profile.
+# aws_profile = profile-here
 
 # Dev/localstack fallback DB connection (used when database_url is empty)
 postgres_user     = "postgres"
@@ -10,10 +12,10 @@ postgres_port     = "5432"
 postgres_db       = "next-ats-db"
 s3_endpoint_url   = "http://localstack:4566"
 
-# Cognito Hosted UI (domain must be globally unique in region)
-cognito_domain_prefix = "application-tracker-dev-auth-REPLACE_ME"
+# Cognito Hosted UI (Terraform appends a stable random suffix for uniqueness)
+cognito_domain_prefix = "next-ats"
 cognito_callback_urls = ["http://localhost:3000/login"]
 cognito_logout_urls   = ["http://localhost:3000/login"]
 
 # For production, set this and keep environment = "prod"
-# database_url = "postgresql+psycopg2://postgres:replace-me@db-endpoint:5432/next-ats-db"
+# database_url = "postgresql+psycopg2://postgres:postgres@db-endpoint:5432/next-ats-db"

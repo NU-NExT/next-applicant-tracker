@@ -1,3 +1,19 @@
+resource "random_string" "cognito_domain_suffix" {
+  length  = 6
+  lower   = true
+  upper   = false
+  numeric = true
+  special = false
+}
+
+locals {
+  cognito_hosted_ui_domain_prefix = substr(
+    "${var.cognito_domain_prefix}-${random_string.cognito_domain_suffix.result}",
+    0,
+    63
+  )
+}
+
 resource "aws_cognito_user_pool" "main" {
   name = "${local.name_prefix}-user-pool"
 
@@ -64,7 +80,7 @@ resource "aws_cognito_user_pool_client" "app_client" {
 }
 
 resource "aws_cognito_user_pool_domain" "hosted_ui" {
-  domain       = var.cognito_domain_prefix
+  domain       = local.cognito_hosted_ui_domain_prefix
   user_pool_id = aws_cognito_user_pool.main.id
 }
 

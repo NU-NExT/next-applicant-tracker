@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.db import Base
 
@@ -23,6 +23,10 @@ class JobMetadata(Base):
     description: Mapped[str] = mapped_column(String(2048), nullable=False)
     metadata_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     metadata_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    id = synonym("metadata_id")
+    created_at = synonym("metadata_created_at")
+    updated_at = synonym("metadata_updated_at")
 
 
 class ApplicationCycle(Base):
@@ -56,6 +60,14 @@ class JobListing(Base):
     listing_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     listing_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("listing_id")
+    position_code = synonym("code_id")
+    slug = synonym("listing_slug")
+    date_created = synonym("listing_date_created")
+    date_end = synonym("listing_date_end")
+    created_at = synonym("listing_created_at")
+    updated_at = synonym("listing_updated_at")
+
 
 class QuestionType(Base):
     __tablename__ = "question_types"
@@ -80,6 +92,10 @@ class QuestionnaireQuestion(Base):
     question_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     question_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("question_id")
+    created_at = synonym("question_created_at")
+    updated_at = synonym("question_updated_at")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -97,6 +113,10 @@ class User(Base):
     user_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     user_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("user_id")
+    created_at = synonym("user_created_at")
+    updated_at = synonym("user_updated_at")
+
 
 class Role(Base):
     __tablename__ = "roles"
@@ -105,6 +125,10 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     role_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     role_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    id = synonym("role_id")
+    created_at = synonym("role_created_at")
+    updated_at = synonym("role_updated_at")
 
 
 class Profile(Base):
@@ -142,6 +166,10 @@ class FieldOption(Base):
     field_option_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     field_option_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("field_option_id")
+    created_at = synonym("field_option_created_at")
+    updated_at = synonym("field_option_updated_at")
+
 
 class ApplicationSubmission(Base):
     __tablename__ = "application_submissions"
@@ -165,6 +193,10 @@ class ApplicationSubmission(Base):
     application_submission_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     application_submission_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("application_submission_id")
+    created_at = synonym("application_submission_created_at")
+    updated_at = synonym("application_submission_updated_at")
+
 
 class ApplicationStatus(Base):
     __tablename__ = "application_statuses"
@@ -174,6 +206,10 @@ class ApplicationStatus(Base):
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     application_status_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     application_status_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    id = synonym("application_status_id")
+    created_at = synonym("application_status_created_at")
+    updated_at = synonym("application_status_updated_at")
 
 
 class ApplicationSubmissionStatusEvent(Base):
@@ -191,6 +227,10 @@ class ApplicationSubmissionStatusEvent(Base):
     application_submission_status_event_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     application_submission_status_event_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("application_submission_status_event_id")
+    created_at = synonym("application_submission_status_event_created_at")
+    updated_at = synonym("application_submission_status_event_updated_at")
+
 
 class ScoreValue(Base):
     __tablename__ = "score_values"
@@ -200,6 +240,10 @@ class ScoreValue(Base):
     label: Mapped[str] = mapped_column(String(64), nullable=False)
     score_value_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     score_value_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    id = synonym("score_value_id")
+    created_at = synonym("score_value_created_at")
+    updated_at = synonym("score_value_updated_at")
 
 
 class ApplicationReviewScore(Base):
@@ -214,6 +258,10 @@ class ApplicationReviewScore(Base):
     application_review_score_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     application_review_score_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
+    id = synonym("application_review_score_id")
+    created_at = synonym("application_review_score_created_at")
+    updated_at = synonym("application_review_score_updated_at")
+
 
 class ApplicationReviewComment(Base):
     __tablename__ = "application_review_comments"
@@ -226,6 +274,10 @@ class ApplicationReviewComment(Base):
     comment: Mapped[str] = mapped_column(Text, nullable=False)
     application_review_comment_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     application_review_comment_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    id = synonym("application_review_comment_id")
+    created_at = synonym("application_review_comment_created_at")
+    updated_at = synonym("application_review_comment_updated_at")
 
 
 class ApplicationQuestionResponse(Base):

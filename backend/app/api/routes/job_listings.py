@@ -1,3 +1,4 @@
+import re
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,15 +27,69 @@ def _ensure_unique_position_code(db: Session, preferred_code: str | None) -> str
     if preferred_code:
         code = preferred_code.strip().upper()
         if code:
-            exists = db.query(JobListing).filter(JobListing.position_code == code).first()
+            exists = db.query(JobListing).filter(JobListing.code_id == code).first()
             if exists:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="position_code already exists")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="code_id already exists")
             return code
     while True:
         generated = _generate_position_code()
-        exists = db.query(JobListing).filter(JobListing.position_code == generated).first()
+        exists = db.query(JobListing).filter(JobListing.code_id == generated).first()
         if not exists:
             return generated
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or f"listing-{uuid4().hex[:8]}"
+
+
+def _ensure_unique_listing_slug(db: Session, preferred_slug: str | None, title: str) -> str:
+    base_slug = _slugify(preferred_slug or title)
+    slug = base_slug
+    counter = 2
+    while db.query(JobListing).filter(JobListing.listing_slug == slug).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    return slug
+
+
+def _normalize_listing_payload(payload_dict: dict, *, db: Session, existing: JobListing | None = None) -> None:
+    if payload_dict.get("date_created") is None:
+        payload_dict.pop("date_created", None)
+    if "date_created" in payload_dict:
+        payload_dict["listing_date_created"] = payload_dict.pop("date_created")
+    if "date_end" in payload_dict:
+        payload_dict["listing_date_end"] = payload_dict.pop("date_end")
+    if "slug" in payload_dict:
+        payload_dict["listing_slug"] = payload_dict.pop("slug")
+
+    code_id = payload_dict.pop("position_code", None)
+    if "code_id" not in payload_dict:
+        payload_dict["code_id"] = existing.code_id if existing and existing.code_id else _ensure_unique_position_code(db, code_id)
+    elif payload_dict["code_id"] is None:
+        payload_dict["code_id"] = existing.code_id if existing else _ensure_unique_position_code(db, None)
+
+    preferred_slug = payload_dict.get("listing_slug")
+    if preferred_slug is None:
+        preferred_slug = existing.listing_slug if existing else None
+    if preferred_slug is None or (existing is None and preferred_slug):
+        payload_dict["listing_slug"] = _ensure_unique_listing_slug(db, preferred_slug, payload_dict["position_title"])
+
+    payload_dict.pop("candidate_intake_url", None)
+
+
+def _add_questions(db: Session, question_payloads: list[dict], job_listing_id: int) -> None:
+    for question in question_payloads:
+        db.add(
+            QuestionnaireQuestion(
+                job_listing_id=job_listing_id,
+                prompt=question["prompt"],
+                sort_order=question.get("sort_order", 0),
+                question_type_id=question["question_type_id"],
+                character_limit=question.get("character_limit"),
+                is_global=question.get("is_global", False),
+            )
+        )
 
 
 @router.get("", response_model=list[JobListingRead])
@@ -54,30 +109,14 @@ def get_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> JobLi
 def create_job_listing(payload: JobListingCreate, db: Session = Depends(get_db)) -> JobListing:
     payload_dict = payload.model_dump()
     question_payloads = payload_dict.pop("questions", [])
-    if payload_dict.get("date_created") is None:
-        payload_dict.pop("date_created", None)
     _normalize_position_fields(payload_dict)
-    position_code = _ensure_unique_position_code(db, payload_dict.get("position_code"))
-    payload_dict["position_code"] = position_code
-    payload_dict["candidate_intake_url"] = payload_dict.get("candidate_intake_url") or f"/apply?position={position_code}"
+    _normalize_listing_payload(payload_dict, db=db)
 
     job_listing = JobListing(**payload_dict)
     db.add(job_listing)
     db.flush()
 
-    for question in question_payloads:
-        db.add(
-            QuestionnaireQuestion(
-                job_listing_id=job_listing.id,
-                prompt=question["prompt"],
-                sort_order=question.get("sort_order", 0),
-                question_type=question.get("question_type", "free_text"),
-                character_limit=question.get("character_limit"),
-                question_bank_key=question.get("question_bank_key"),
-                question_config_json=question.get("question_config_json"),
-                is_global=question.get("is_global", False),
-            )
-        )
+    _add_questions(db, question_payloads, job_listing.listing_id)
 
     db.commit()
     db.refresh(job_listing)
@@ -92,29 +131,14 @@ def update_job_listing(job_listing_id: int, payload: JobListingCreate, db: Sessi
 
     payload_dict = payload.model_dump()
     question_payloads = payload_dict.pop("questions", [])
-    if payload_dict.get("date_created") is None:
-        payload_dict.pop("date_created", None)
     _normalize_position_fields(payload_dict)
-    payload_dict["position_code"] = job_listing.position_code
-    payload_dict["candidate_intake_url"] = job_listing.candidate_intake_url
+    _normalize_listing_payload(payload_dict, db=db, existing=job_listing)
 
     for key, value in payload_dict.items():
         setattr(job_listing, key, value)
 
-    db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == job_listing.id).delete()
-    for question in question_payloads:
-        db.add(
-            QuestionnaireQuestion(
-                job_listing_id=job_listing.id,
-                prompt=question["prompt"],
-                sort_order=question.get("sort_order", 0),
-                question_type=question.get("question_type", "free_text"),
-                character_limit=question.get("character_limit"),
-                question_bank_key=question.get("question_bank_key"),
-                question_config_json=question.get("question_config_json"),
-                is_global=question.get("is_global", False),
-            )
-        )
+    db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == job_listing.listing_id).delete()
+    _add_questions(db, question_payloads, job_listing.listing_id)
 
     db.commit()
     db.refresh(job_listing)
@@ -132,29 +156,14 @@ def patch_job_listing(job_listing_id: int, payload: JobListingUpdate, db: Sessio
 
     if "position_title" in payload_dict or "job" in payload_dict:
         _normalize_position_fields(payload_dict)
-    if "position_code" in payload_dict:
-        payload_dict["position_code"] = job_listing.position_code
-    if "candidate_intake_url" in payload_dict:
-        payload_dict["candidate_intake_url"] = job_listing.candidate_intake_url
+    _normalize_listing_payload(payload_dict, db=db, existing=job_listing)
 
     for key, value in payload_dict.items():
         setattr(job_listing, key, value)
 
     if question_payloads is not None:
-        db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == job_listing.id).delete()
-        for question in question_payloads:
-            db.add(
-                QuestionnaireQuestion(
-                    job_listing_id=job_listing.id,
-                    prompt=question["prompt"],
-                    sort_order=question.get("sort_order", 0),
-                    question_type=question.get("question_type", "free_text"),
-                    character_limit=question.get("character_limit"),
-                    question_bank_key=question.get("question_bank_key"),
-                    question_config_json=question.get("question_config_json"),
-                    is_global=question.get("is_global", False),
-                )
-            )
+        db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == job_listing.listing_id).delete()
+        _add_questions(db, question_payloads, job_listing.listing_id)
 
     db.commit()
     db.refresh(job_listing)
@@ -175,7 +184,7 @@ def delete_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> No
 @router.get("/by-position-code/{position_code}", response_model=JobListingRead)
 def get_job_listing_by_position_code(position_code: str, db: Session = Depends(get_db)) -> JobListing:
     normalized = position_code.strip().upper()
-    job_listing = db.query(JobListing).filter(JobListing.position_code == normalized).first()
+    job_listing = db.query(JobListing).filter(JobListing.code_id == normalized).first()
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
     return job_listing

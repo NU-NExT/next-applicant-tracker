@@ -84,13 +84,13 @@ def create_repository_request(
     token = require_bearer_token(authorization)
     user = get_or_create_user_from_access_token(db, token)
     resolved_job_listing_id = payload.job_listing_id
-    if resolved_job_listing_id is None and payload.position_code:
-        by_code = db.query(JobListing).filter(JobListing.position_code == payload.position_code.strip().upper()).first()
-        if by_code is not None:
-            resolved_job_listing_id = by_code.id
+    if resolved_job_listing_id is None and payload.job_listing_slug:
+        by_slug = db.query(JobListing).filter(JobListing.listing_slug == payload.job_listing_slug.strip().lower()).first()
+        if by_slug is not None:
+            resolved_job_listing_id = by_slug.listing_id
 
     if resolved_job_listing_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_listing_id or position_code is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_listing_id or job_listing_slug is required")
 
     job_listing = db.query(JobListing).filter(JobListing.id == resolved_job_listing_id).first()
     if job_listing is None:
@@ -98,7 +98,7 @@ def create_repository_request(
 
     payload_data = payload.model_dump()
     payload_data["job_listing_id"] = resolved_job_listing_id
-    payload_data.pop("position_code", None)
+    payload_data.pop("job_listing_slug", None)
     if not payload_data.get("status"):
         payload_data["status"] = "applied"
     payload_data["applicant_email"] = user.email
@@ -133,10 +133,10 @@ def create_repository_request(
         payload.profile_snapshot_json or {},
     )
 
+    payload_data["profile_snapshot_json"] = snapshot
     submission = ApplicationSubmission(
         **payload_data,
-        profile_snapshot_json=snapshot,
-        created_at=datetime.utcnow(),
+        application_submission_created_at=datetime.utcnow(),
     )
     db.add(submission)
     db.commit()

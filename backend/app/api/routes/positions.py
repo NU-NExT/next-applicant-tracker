@@ -24,7 +24,7 @@ def get_position(position_id: int, db: Session = Depends(get_db)) -> JobListing:
 @router.get("/code/{position_code}", response_model=JobListingRead)
 def get_position_by_code(position_code: str, db: Session = Depends(get_db)) -> JobListing:
     code = position_code.strip().upper()
-    position = db.query(JobListing).filter(JobListing.position_code == code).first()
+    position = db.query(JobListing).filter(JobListing.code_id == code).first()
     if position is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
     return position

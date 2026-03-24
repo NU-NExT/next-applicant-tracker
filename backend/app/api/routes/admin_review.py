@@ -20,11 +20,35 @@ from app.models.models import (
     ApplicationReviewScore,
     ApplicationSubmission,
     JobListing,
+    ScoreValue,
     User,
 )
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/api/admin/review", tags=["admin-review"])
+
+
+def _to_score_read(row: ApplicationReviewScore, reviewer_name: str, score_value: ScoreValue | None) -> ApplicationReviewScoreRead:
+    return ApplicationReviewScoreRead(
+        application_review_score_id=row.application_review_score_id,
+        application_submission_id=row.application_submission_id,
+        reviewer_user_id=row.reviewer_user_id,
+        reviewer_name=reviewer_name,
+        score_value_id=row.score_value_id,
+        score=score_value.value if score_value else None,
+        application_review_score_created_at=row.application_review_score_created_at,
+    )
+
+
+def _to_comment_read(row: ApplicationReviewComment, reviewer_name: str) -> ApplicationReviewCommentRead:
+    return ApplicationReviewCommentRead(
+        application_review_comment_id=row.application_review_comment_id,
+        application_submission_id=row.application_submission_id,
+        reviewer_user_id=row.reviewer_user_id,
+        reviewer_name=reviewer_name,
+        comment=row.comment,
+        application_review_comment_created_at=row.application_review_comment_created_at,
+    )
 
 
 def _get_global_fields(snapshot: dict) -> dict:
@@ -171,32 +195,15 @@ def get_review_detail(
     scores: list[ApplicationReviewScoreRead] = []
     for row in score_rows:
         reviewer = db.query(User).filter(User.id == row.reviewer_user_id).first()
+        score_value = db.query(ScoreValue).filter(ScoreValue.score_value_id == row.score_value_id).first()
         reviewer_name = f"{reviewer.first_name} {reviewer.last_name}".strip() if reviewer else f"Reviewer {row.reviewer_user_id}"
-        scores.append(
-            ApplicationReviewScoreRead(
-                id=row.id,
-                application_submission_id=row.application_submission_id,
-                reviewer_user_id=row.reviewer_user_id,
-                reviewer_name=reviewer_name,
-                score=row.score,
-                created_at=row.created_at,
-            )
-        )
+        scores.append(_to_score_read(row, reviewer_name, score_value))
 
     comments: list[ApplicationReviewCommentRead] = []
     for row in comment_rows:
         reviewer = db.query(User).filter(User.id == row.reviewer_user_id).first()
         reviewer_name = f"{reviewer.first_name} {reviewer.last_name}".strip() if reviewer else f"Reviewer {row.reviewer_user_id}"
-        comments.append(
-            ApplicationReviewCommentRead(
-                id=row.id,
-                application_submission_id=row.application_submission_id,
-                reviewer_user_id=row.reviewer_user_id,
-                reviewer_name=reviewer_name,
-                comment=row.comment,
-                created_at=row.created_at,
-            )
-        )
+        comments.append(_to_comment_read(row, reviewer_name))
 
     resume_url = (
         storage_service.get_view_url(settings.s3_bucket_resumes, submission.resume_s3_key)
@@ -206,7 +213,8 @@ def get_review_detail(
     return CandidateReviewDetail(
         submission=submission,
         position_title=position.position_title,
-        position_code=position.position_code,
+        position_slug=position.listing_slug,
+        position_code=position.code_id,
         global_profile_fields=_get_global_fields(submission.profile_snapshot_json or {}),
         position_question_answers=answers,
         resume_view_url=resume_url,
@@ -227,24 +235,27 @@ def add_score(
     submission = db.query(ApplicationSubmission).filter(ApplicationSubmission.id == submission_id).first()
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
+    score_value_id = payload.score_value_id
+    score_value = None
+    if score_value_id is not None:
+        score_value = db.query(ScoreValue).filter(ScoreValue.score_value_id == score_value_id).first()
+    elif payload.score is not None:
+        score_value = db.query(ScoreValue).filter(ScoreValue.value == payload.score).first()
+        if score_value is not None:
+            score_value_id = score_value.score_value_id
+    if score_value is None or score_value_id is None:
+        raise HTTPException(status_code=400, detail="Valid score_value_id or score is required")
     score = ApplicationReviewScore(
         application_submission_id=submission_id,
         reviewer_user_id=reviewer.id,
-        score=payload.score,
+        score_value_id=score_value_id,
     )
     db.add(score)
     submission.status = "scored"
     db.add(submission)
     db.commit()
     db.refresh(score)
-    return ApplicationReviewScoreRead(
-        id=score.id,
-        application_submission_id=score.application_submission_id,
-        reviewer_user_id=score.reviewer_user_id,
-        reviewer_name=f"{reviewer.first_name} {reviewer.last_name}".strip(),
-        score=score.score,
-        created_at=score.created_at,
-    )
+    return _to_score_read(score, f"{reviewer.first_name} {reviewer.last_name}".strip(), score_value)
 
 
 @router.post("/applications/{submission_id}/comments", response_model=ApplicationReviewCommentRead)
@@ -270,11 +281,4 @@ def add_comment(
         db.add(submission)
     db.commit()
     db.refresh(comment)
-    return ApplicationReviewCommentRead(
-        id=comment.id,
-        application_submission_id=comment.application_submission_id,
-        reviewer_user_id=comment.reviewer_user_id,
-        reviewer_name=f"{reviewer.first_name} {reviewer.last_name}".strip(),
-        comment=comment.comment,
-        created_at=comment.created_at,
-    )
+    return _to_comment_read(comment, f"{reviewer.first_name} {reviewer.last_name}".strip())

@@ -24,9 +24,9 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
+# @app.on_event("startup")
+# def startup() -> None:
+#     Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health", tags=["system"])

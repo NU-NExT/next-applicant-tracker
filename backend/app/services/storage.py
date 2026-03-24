@@ -21,6 +21,7 @@ class StorageService:
                 endpoint_url=settings.s3_endpoint_url,
                 aws_access_key_id=settings.aws_access_key_id,
                 aws_secret_access_key=settings.aws_secret_access_key,
+                aws_session_token=settings.aws_session_token,
             )
 
     async def save(self, file: UploadFile, bucket: str, prefix: str) -> str:
@@ -36,6 +37,15 @@ class StorageService:
         content = await file.read()
         target.write_bytes(content)
         return str(target)
+
+    def get_view_url(self, bucket: str, key: str, expires_seconds: int = 3600) -> str:
+        if self.backend == "s3" and self.s3_client:
+            return self.s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=expires_seconds,
+            )
+        return key
 
 
 storage_service = StorageService()

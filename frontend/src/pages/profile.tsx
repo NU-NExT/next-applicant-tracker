@@ -2,101 +2,13 @@ import { useEffect, useState } from "react";
 
 import { getMyProfile, type UserProfile } from "../api";
 import { Header } from "../components/header";
-
-type ProfileDraft = {
-  fullName: string;
-  preferredName: string;
-  expectedGraduationDate: string;
-  currentCollegeYear: string;
-  major: string;
-  minor: string;
-  concentration: string;
-  gpa: string;
-  githubUrl: string;
-  linkedinUrl: string;
-  clubsExtracurriculars: string;
-  paidExperienceCount: string;
-  unpaidExperienceCount: string;
-};
-
-const COLLEGE_YEAR_OPTIONS = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate", "Other"];
+import { buildProfileDraft, COLLEGE_YEAR_OPTIONS, emptyProfileDraft, type ProfileDraft } from "../lib/profile-draft";
 
 const inputClassName =
   "mt-2 w-full rounded border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1f1f1f] outline-none transition focus:border-[#1f6f5f]";
 const readOnlyClassName =
   "mt-2 w-full rounded border border-[#d0d0d0] bg-[#f4f4f4] px-3 py-2 text-sm text-[#4b4b4b]";
 const sectionClassName = "rounded-xl border border-[#d7dad8] bg-[#fcfcfb] p-5";
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function normalizeMetadataKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function pickMetadataString(source: Record<string, unknown>, candidates: string[]): string {
-  for (const candidate of candidates) {
-    const value = source[candidate];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  const normalizedMap = new Map<string, unknown>();
-  Object.entries(source).forEach(([key, value]) => {
-    normalizedMap.set(normalizeMetadataKey(key), value);
-  });
-
-  for (const candidate of candidates) {
-    const value = normalizedMap.get(normalizeMetadataKey(candidate));
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return "";
-}
-
-function buildProfileDraft(profile: UserProfile): ProfileDraft {
-  const userMetadata = asRecord(profile.user_metadata);
-  const globalProfile = asRecord(userMetadata.global_profile);
-  const fullName = `${profile.first_name} ${profile.last_name}`.trim();
-
-  return {
-    fullName,
-    preferredName: pickMetadataString(userMetadata, ["preferred_name", "preferredName"]),
-    expectedGraduationDate: pickMetadataString(globalProfile, ["Expected graduation date"]),
-    currentCollegeYear: pickMetadataString(globalProfile, ["Current year / grade level"]),
-    major: pickMetadataString(globalProfile, ["Major(s) - selected from a maintained dropdown list"]),
-    minor: pickMetadataString(globalProfile, ["Minor(s) - selected from a maintained dropdown list (optional)"]),
-    concentration: pickMetadataString(globalProfile, ["Concentration - selected from a maintained dropdown list (optional)"]),
-    gpa: pickMetadataString(globalProfile, ["GPA (optional)"]),
-    githubUrl: pickMetadataString(globalProfile, ["Github URL (optional)", "GitHub URL (optional)"]),
-    linkedinUrl: pickMetadataString(globalProfile, ["Linkedin URL (optional)", "LinkedIn URL (optional)"]),
-    clubsExtracurriculars: pickMetadataString(globalProfile, ["Clubs and extracurricular activities (list)"]),
-    paidExperienceCount: pickMetadataString(globalProfile, ["Count of paid work experiences since high school graduation"]),
-    unpaidExperienceCount: pickMetadataString(globalProfile, ["Count of unpaid/volunteer experiences since high school graduation"]),
-  };
-}
-
-function emptyProfileDraft(): ProfileDraft {
-  return {
-    fullName: "",
-    preferredName: "",
-    expectedGraduationDate: "",
-    currentCollegeYear: "",
-    major: "",
-    minor: "",
-    concentration: "",
-    gpa: "",
-    githubUrl: "",
-    linkedinUrl: "",
-    clubsExtracurriculars: "",
-    paidExperienceCount: "",
-    unpaidExperienceCount: "",
-  };
-}
 
 type FieldProps = {
   label: string;

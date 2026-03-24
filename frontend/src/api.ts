@@ -23,6 +23,7 @@ export type JobDataRecord = {
 export type JobListingRecord = {
   id: number;
   code_id?: string | null;
+  slug?: string;
   date_created: string;
   date_end: string;
   position_title?: string;
@@ -93,7 +94,7 @@ export type RepositoryQuestion = {
 
 export type RepositoryRequestPayload = {
   job_listing_id?: number;
-  position_code?: string;
+  job_listing_slug?: string;
   applicant_name: string;
   applicant_email: string;
   responses_json: string;
@@ -268,6 +269,11 @@ export async function getRepositoryQuestions(jobListingId: number): Promise<Repo
 
 export async function getRepositoryQuestionsByPosition(positionCode: string): Promise<RepositoryQuestion[]> {
   const response = await apiClient.get<RepositoryQuestion[]>(`/api/repository/by-position/${positionCode}/questions`);
+  return response.data;
+}
+
+export async function getJobListingByPositionCode(positionCode: string): Promise<JobListingRecord> {
+  const response = await apiClient.get<JobListingRecord>(`/api/job-listings/by-position-code/${positionCode}`);
   return response.data;
 }
 

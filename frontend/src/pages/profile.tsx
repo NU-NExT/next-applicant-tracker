@@ -17,6 +17,7 @@ type ProfileFormState = {
   clubs: string[];
   paidExperienceCount: string;
   unpaidExperienceCount: string;
+  otherRelevantInformation: string;
 };
 
 const EMPTY_PROFILE_FORM: ProfileFormState = {
@@ -33,6 +34,7 @@ const EMPTY_PROFILE_FORM: ProfileFormState = {
   clubs: [],
   paidExperienceCount: "0",
   unpaidExperienceCount: "0",
+  otherRelevantInformation: "",
 };
 
 const GLOBAL_PROFILE_PROMPTS = {
@@ -51,6 +53,7 @@ const GLOBAL_PROFILE_PROMPTS = {
   clubs: "Clubs and extracurricular activities (list)",
   paidExperienceCount: "Count of paid work experiences since high school graduation",
   unpaidExperienceCount: "Count of unpaid/volunteer experiences since high school graduation",
+  otherRelevantInformation: "Any other information that would be relevant",
   resumeUpload: "Resume upload (PDF or DOCX, max 10MB)",
 } as const;
 
@@ -145,6 +148,10 @@ export function ProfilePage() {
             readString(candidateProfile.paid_experience_count, globalProfile[GLOBAL_PROFILE_PROMPTS.paidExperienceCount]) || "0",
           unpaidExperienceCount:
             readString(candidateProfile.unpaid_experience_count, globalProfile[GLOBAL_PROFILE_PROMPTS.unpaidExperienceCount]) || "0",
+          otherRelevantInformation: readString(
+            candidateProfile.other_relevant_information,
+            globalProfile[GLOBAL_PROFILE_PROMPTS.otherRelevantInformation]
+          ),
         });
         setStatusMessage("");
       } catch {
@@ -206,6 +213,7 @@ export function ProfilePage() {
       const paidExperienceCount = parseOptionalNumber(profileForm.paidExperienceCount, "Paid experience count");
       const unpaidExperienceCount = parseOptionalNumber(profileForm.unpaidExperienceCount, "Unpaid experience count");
       const gpa = parseOptionalNumber(profileForm.gpa, "GPA", true);
+      const otherRelevantInformation = profileForm.otherRelevantInformation.trim();
 
       if (!fullLegalName || !expectedGraduationDate || !currentYear || !major || gpa === null || paidExperienceCount === null || unpaidExperienceCount === null) {
         throw new Error("Fill in all required fields before saving.");
@@ -226,6 +234,7 @@ export function ProfilePage() {
         clubs,
         paid_experience_count: paidExperienceCount,
         unpaid_experience_count: unpaidExperienceCount,
+        other_relevant_information: otherRelevantInformation,
         resume_s3_key: "",
       };
 
@@ -245,6 +254,7 @@ export function ProfilePage() {
         [GLOBAL_PROFILE_PROMPTS.clubs]: clubs.join(", "),
         [GLOBAL_PROFILE_PROMPTS.paidExperienceCount]: paidExperienceCount === null ? "" : String(paidExperienceCount),
         [GLOBAL_PROFILE_PROMPTS.unpaidExperienceCount]: unpaidExperienceCount === null ? "" : String(unpaidExperienceCount),
+        [GLOBAL_PROFILE_PROMPTS.otherRelevantInformation]: otherRelevantInformation,
         [GLOBAL_PROFILE_PROMPTS.resumeUpload]: "",
       };
 
@@ -273,7 +283,15 @@ export function ProfilePage() {
           <h1 className="text-3xl font-semibold text-[#1f1f1f]">My Profile</h1>
           <p className="mt-1 text-sm text-[#444]">Profile updates apply to future applications only.</p>
 
-          <form onSubmit={onSave} className="mt-6 space-y-6">
+          <form
+            onSubmit={onSave}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) {
+                e.preventDefault();
+              }
+            }}
+            className="mt-6 space-y-6"
+          >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="block max-w-md text-sm">
                 Full legal name *
@@ -470,6 +488,16 @@ export function ProfilePage() {
                 ))}
               </div>
             </div>
+
+            <label className="block max-w-3xl text-sm">
+              <p className="font-medium text-[#1f1f1f]">Additional information</p>
+              <textarea
+                value={profileForm.otherRelevantInformation}
+                onChange={(e) => updateField("otherRelevantInformation", e.target.value)}
+                className="mt-1 h-28 w-full rounded border border-[#d0d0d0] px-3 py-2 [font-family:inherit]"
+                placeholder="Anything else you'd like reviewers to know (e.g. portfolio, personal website)"
+              />
+            </label>
 
             <div className="flex items-center gap-3">
               <button type="submit" className="rounded bg-[#1f6f5f] px-4 py-2 text-sm text-white">

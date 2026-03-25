@@ -495,7 +495,7 @@ export function ProfilePage() {
                 value={profileForm.otherRelevantInformation}
                 onChange={(e) => updateField("otherRelevantInformation", e.target.value)}
                 className="mt-1 h-28 w-full rounded border border-[#d0d0d0] px-3 py-2 [font-family:inherit]"
-                placeholder="Anything else you'd like reviewers to know (e.g. portfolio, personal website)"
+                placeholder="Anything else you'd like reviewers to know (e.g. portfolio, personal website, notable distinctions)"
               />
             </label>
 

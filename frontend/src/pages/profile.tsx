@@ -6,6 +6,7 @@ import { Header } from "../components/header";
 type ProfileFormState = {
   fullLegalName: string;
   preferredName: string;
+  pronouns: string;
   expectedGraduationDate: string;
   currentYear: string;
   major: string;
@@ -23,6 +24,7 @@ type ProfileFormState = {
 const EMPTY_PROFILE_FORM: ProfileFormState = {
   fullLegalName: "",
   preferredName: "",
+  pronouns: "",
   expectedGraduationDate: "",
   currentYear: "",
   major: "",
@@ -40,6 +42,7 @@ const EMPTY_PROFILE_FORM: ProfileFormState = {
 const GLOBAL_PROFILE_PROMPTS = {
   fullLegalName: "Full legal name",
   preferredName: "Preferred name (optional)",
+  pronouns: "Pronouns",
   northeasternEmail: "Northeastern email",
   expectedGraduationDate: "Expected graduation date",
   currentYear: "Current year / grade level",
@@ -132,6 +135,7 @@ export function ProfilePage() {
             globalProfile[GLOBAL_PROFILE_PROMPTS.preferredName],
             profile.first_name
           ),
+          pronouns: readString(candidateProfile.pronouns, globalProfile[GLOBAL_PROFILE_PROMPTS.pronouns]),
           expectedGraduationDate: readString(
             candidateProfile.expected_graduation_date,
             globalProfile[GLOBAL_PROFILE_PROMPTS.expectedGraduationDate]
@@ -202,6 +206,7 @@ export function ProfilePage() {
     try {
       const fullLegalName = profileForm.fullLegalName.trim();
       const preferredName = profileForm.preferredName.trim();
+      const pronouns = profileForm.pronouns.trim();
       const expectedGraduationDate = profileForm.expectedGraduationDate.trim();
       const currentYear = profileForm.currentYear.trim();
       const major = profileForm.major.trim();
@@ -222,6 +227,7 @@ export function ProfilePage() {
       const normalizedProfile = {
         full_legal_name: fullLegalName,
         preferred_name: preferredName,
+        pronouns,
         expected_graduation_date: expectedGraduationDate,
         current_year: currentYear,
         coop_number: null,
@@ -241,6 +247,7 @@ export function ProfilePage() {
       const globalProfile = {
         [GLOBAL_PROFILE_PROMPTS.fullLegalName]: normalizedProfile.full_legal_name,
         [GLOBAL_PROFILE_PROMPTS.preferredName]: normalizedProfile.preferred_name,
+        [GLOBAL_PROFILE_PROMPTS.pronouns]: normalizedProfile.pronouns,
         [GLOBAL_PROFILE_PROMPTS.northeasternEmail]: email,
         [GLOBAL_PROFILE_PROMPTS.expectedGraduationDate]: expectedGraduationDate,
         [GLOBAL_PROFILE_PROMPTS.currentYear]: normalizedProfile.current_year,
@@ -292,152 +299,176 @@ export function ProfilePage() {
             }}
             className="mt-6 space-y-6"
           >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="block max-w-md text-sm">
-                Full legal name *
-                <input
-                  value={profileForm.fullLegalName}
-                  onChange={(e) => updateField("fullLegalName", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                />
-              </label>
+            <div className="space-y-4">
+              <h2 className="border-b border-[#d8d8d8] pb-2 text-lg font-semibold text-[#1f1f1f]">About Me</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block max-w-md text-sm">
+                  Full legal name *
+                  <input
+                    value={profileForm.fullLegalName}
+                    onChange={(e) => updateField("fullLegalName", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Preferred name
-                <input
-                  value={profileForm.preferredName}
-                  onChange={(e) => updateField("preferredName", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Preferred name
+                  <input
+                    value={profileForm.preferredName}
+                    onChange={(e) => updateField("preferredName", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Expected graduation date *
-                <input
-                  value={profileForm.expectedGraduationDate}
-                  onChange={(e) => updateField("expectedGraduationDate", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  placeholder="May 2026"
-                  required
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Pronouns
+                  <input
+                    value={profileForm.pronouns}
+                    onChange={(e) => updateField("pronouns", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    placeholder="e.g. she/her"
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Current year *
-                <select
-                  value={profileForm.currentYear}
-                  onChange={(e) => updateField("currentYear", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                >
-                  <option value="">Select current year</option>
-                  {CURRENT_YEAR_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="block max-w-md text-sm">
+                  Northeastern email
+                  <input value={email} disabled className="mt-1 w-full rounded border border-[#d0d0d0] bg-[#f4f4f4] px-3 py-2" />
+                </label>
+              </div>
+            </div>
 
-              <label className="block max-w-md text-sm">
-                Major *
-                <input
-                  value={profileForm.major}
-                  onChange={(e) => updateField("major", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                />
-              </label>
+            <div className="space-y-4">
+              <h2 className="border-b border-[#d8d8d8] pb-2 text-lg font-semibold text-[#1f1f1f]">Academics</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block max-w-md text-sm">
+                  Expected graduation date *
+                  <input
+                    value={profileForm.expectedGraduationDate}
+                    onChange={(e) => updateField("expectedGraduationDate", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    placeholder="May 2026"
+                    required
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Minor
-                <input
-                  value={profileForm.minor}
-                  onChange={(e) => updateField("minor", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Current year *
+                  <select
+                    value={profileForm.currentYear}
+                    onChange={(e) => updateField("currentYear", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  >
+                    <option value="">Select current year</option>
+                    {CURRENT_YEAR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Concentration
-                <input
-                  value={profileForm.concentration}
-                  onChange={(e) => updateField("concentration", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Major *
+                  <input
+                    value={profileForm.major}
+                    onChange={(e) => updateField("major", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                GPA *
-                <input
-                  type="number"
-                  min="0"
-                  max="4.0"
-                  step="0.01"
-                  value={profileForm.gpa}
-                  onChange={(e) => updateField("gpa", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Minor
+                  <input
+                    value={profileForm.minor}
+                    onChange={(e) => updateField("minor", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                <span className="flex items-center gap-2">
-                  <span>Paid co-op/internship count *</span>
-                  <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#b8b8b8] text-[10px] text-[#555]">
-                    ?
-                    <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-56 -translate-x-1/2 rounded border border-[#d0d0d0] bg-white px-2 py-1 text-xs text-[#333] shadow-sm group-hover:block">
-                      Paid co-ops/interships you have completed related to your major
+                <label className="block max-w-md text-sm">
+                  Concentration
+                  <input
+                    value={profileForm.concentration}
+                    onChange={(e) => updateField("concentration", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  />
+                </label>
+
+                <label className="block max-w-md text-sm">
+                  GPA *
+                  <input
+                    type="number"
+                    min="0"
+                    max="4.0"
+                    step="0.01"
+                    value={profileForm.gpa}
+                    onChange={(e) => updateField("gpa", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="border-b border-[#d8d8d8] pb-2 text-lg font-semibold text-[#1f1f1f]">Experience</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+                <label className="block max-w-md text-sm">
+                  <span className="flex items-center gap-2">
+                    <span>Paid co-op/internship count *</span>
+                    <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#b8b8b8] text-[10px] text-[#555]">
+                      ?
+                      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-56 -translate-x-1/2 rounded border border-[#d0d0d0] bg-white px-2 py-1 text-xs text-[#333] shadow-sm group-hover:block">
+                        Paid co-ops/interships you have completed related to your major
+                      </span>
                     </span>
                   </span>
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  value={profileForm.paidExperienceCount}
-                  onChange={(e) => updateField("paidExperienceCount", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                />
-              </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={profileForm.paidExperienceCount}
+                    onChange={(e) => updateField("paidExperienceCount", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                Unpaid co-op/internship count *
-                <input
-                  type="number"
-                  min="0"
-                  value={profileForm.unpaidExperienceCount}
-                  onChange={(e) => updateField("unpaidExperienceCount", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                  required
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  Unpaid co-op/internship count *
+                  <input
+                    type="number"
+                    min="0"
+                    value={profileForm.unpaidExperienceCount}
+                    onChange={(e) => updateField("unpaidExperienceCount", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                    required
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                GitHub URL
-                <input
-                  type="url"
-                  value={profileForm.githubUrl}
-                  onChange={(e) => updateField("githubUrl", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                />
-              </label>
+                <label className="block max-w-md text-sm">
+                  GitHub URL
+                  <input
+                    type="url"
+                    value={profileForm.githubUrl}
+                    onChange={(e) => updateField("githubUrl", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  />
+                </label>
 
-              <label className="block max-w-md text-sm">
-                LinkedIn URL
-                <input
-                  type="url"
-                  value={profileForm.linkedinUrl}
-                  onChange={(e) => updateField("linkedinUrl", e.target.value)}
-                  className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-                />
-              </label>
-
-              <label className="block max-w-xl text-sm md:col-span-2">
-                Northeastern email
-                <input value={email} disabled className="mt-1 w-full rounded border border-[#d0d0d0] bg-[#f4f4f4] px-3 py-2" />
-              </label>
+                <label className="block max-w-md text-sm">
+                  LinkedIn URL
+                  <input
+                    type="url"
+                    value={profileForm.linkedinUrl}
+                    onChange={(e) => updateField("linkedinUrl", e.target.value)}
+                    className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="max-w-3xl text-sm">

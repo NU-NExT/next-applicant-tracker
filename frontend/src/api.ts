@@ -150,7 +150,6 @@ export type FieldOptionRecord = {
 export type AuthLoginPayload = {
   email: string;
   password: string;
-  admin_mode?: boolean;
 };
 
 export type AuthLoginResponse = {
@@ -160,6 +159,10 @@ export type AuthLoginResponse = {
   expires_in: number;
   token_type: string;
   username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
 };
 
 export type AuthRegisterApplicantPayload = {

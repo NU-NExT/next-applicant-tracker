@@ -12,15 +12,14 @@ import { Header } from "../components/header";
 
 type LoginPageProps = {
   jobId?: string;
-  adminMode?: boolean;
 };
 
-export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
+export function LoginPage({ jobId }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">(adminMode ? "signin" : "signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset">("signin");
   const [statusMessage, setStatusMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [hasToken, setHasToken] = useState<boolean>(() => Boolean(localStorage.getItem("auth_access_token")));
@@ -30,7 +29,8 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
   const isNortheasternEmail = (value: string): boolean => value.trim().toLowerCase().endsWith("@northeastern.edu");
 
   const useExistingAccount = () => {
-    window.location.href = adminMode ? "/admin-dashboard" : nextApplicantPath;
+    const isAdmin = localStorage.getItem("auth_is_admin") === "true";
+    window.location.href = isAdmin ? "/admin-dashboard" : nextApplicantPath;
   };
 
   const getErrorDetail = (error: unknown, fallback: string): string => {
@@ -41,7 +41,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
     return fallback;
   };
 
-  const finishLogin = async (accessToken: string, nextPath: string, useAdminRedirect = adminMode) => {
+  const finishLogin = async (accessToken: string, nextPath: string, useAdminRedirect = false) => {
     localStorage.setItem("auth_access_token", accessToken);
     setHasToken(true);
     if (useAdminRedirect) {
@@ -90,13 +90,15 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
       const auth = await authLogin({
         email: normalizedEmail,
         password,
-        admin_mode: adminMode,
       });
       localStorage.setItem("auth_id_token", auth.id_token);
       if (auth.refresh_token) {
         localStorage.setItem("auth_refresh_token", auth.refresh_token);
       }
-      await finishLogin(auth.access_token, nextApplicantPath, adminMode);
+      localStorage.setItem("auth_user_email", auth.email);
+      localStorage.setItem("auth_user_name", `${auth.first_name ?? ""} ${auth.last_name ?? ""}`.trim() || auth.email);
+      localStorage.setItem("auth_is_admin", auth.is_admin ? "true" : "false");
+      await finishLogin(auth.access_token, nextApplicantPath, auth.is_admin);
     } catch (error) {
       setStatusMessage(getErrorDetail(error, "Sign in failed. Check your email verification and password."));
     } finally {
@@ -162,11 +164,11 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
     <div className="min-h-screen bg-[#f4f5f6] text-[#222]">
       <Header />
 
-      <main className="mx-auto w-full max-w-[980px] px-6 py-20 pt-24">
-        <div className="grid gap-4 md:grid-cols-[1fr_280px]">
-          <div>
+      <main className="mx-auto w-full max-w-[1200px] max-h-[800px] px-6 py-20 pt-24 mt-[50px]">
+        <div className="flex flex-col items-center gap-4 h-full">
+          <div className="w-full max-w-[600px] h-full">
             {hasToken ? (
-              <section className="mb-4 w-full max-w-[450px] rounded border border-[#b6d7cd] bg-[#e8f7f2] p-3">
+              <section className="mb-4 w-full rounded border border-[#b6d7cd] bg-[#e8f7f2] p-3">
                 <p className="text-sm text-[#1f463d]">
                   Existing account token detected. Use existing account for this session?
                 </p>
@@ -180,9 +182,8 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               </section>
             ) : null}
 
-            <section className="w-full max-w-[450px] rounded-sms border border-[#e3e3e3] bg-white p-[22px]">
-          {!adminMode ? (
-            <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
+            <section className="mx-auto w-[400px] h-[350px] rounded-sm border border-[#e3e3e3] bg-white p-[22px] flex flex-col gap-4">
+            <div className="grid grid-cols-3 gap-2 text-xs">
               <button
                 type="button"
                 className={`rounded border px-2 py-1 ${mode === "signin" ? "bg-[#1f6f5f] text-white" : "bg-white"}`}
@@ -205,12 +206,9 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
                 Reset
               </button>
             </div>
-          ) : (
-            <p className="mb-3 text-sm text-[#333]">Administrator Sign In (ADMIN only)</p>
-          )}
 
           {mode === "signin" || mode === "signup" || mode === "forgot" || mode === "reset" ? (
-            <label className="mb-3 block text-[13px] text-[#444]">
+            <label className="block text-[13px] text-[#444] mt-[20px]">
               Email
               <input
                 placeholder="example@northeastern.edu"
@@ -222,7 +220,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
           ) : null}
 
           {mode === "signin" ? (
-            <label className="mb-3 block text-[13px] text-[#444]">
+            <label className="block text-[13px] text-[#444] mt-[20px]">
               Password
               <input
                 type="password"
@@ -235,7 +233,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
           ) : null}
           {mode === "reset" ? (
             <>
-              <label className="mb-3 block text-[13px] text-[#444]">
+              <label className="block text-[13px] text-[#444] mt-[20px]">
                 Verification Code
                 <input
                   placeholder="Code from email"
@@ -244,7 +242,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
                   className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
                 />
               </label>
-              <label className="mb-3 block text-[13px] text-[#444]">
+              <label className="block text-[13px] text-[#444] mt-[20px]">
                 New Password
                 <input
                   type="password"
@@ -256,7 +254,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               </label>
             </>
           ) : mode !== "signin" ? (
-            <label className="mb-3 block text-[13px] text-[#444]">
+            <label className="block text-[13px] text-[#444] mt-[20px]">
               Password
               <input
                 type="password"
@@ -273,22 +271,20 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               type="button"
               disabled={isBusy}
               onClick={() => void submitSignIn()}
-              className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
             >
               {isBusy
                 ? "Signing In..."
-                : adminMode
-                  ? "Sign In as Admin"
-                  : "Sign In as Applicant"}
+                : "Sign In"}
             </button>
           ) : null}
 
-          {mode === "signup" && !adminMode ? (
+          {mode === "signup" ? (
             <button
               type="button"
               disabled={isBusy}
               onClick={() => void submitSignUp()}
-              className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60 mt-[50px]"
             >
               {isBusy ? "Creating Account..." : "Create Applicant Account"}
             </button>
@@ -299,7 +295,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               type="button"
               disabled={isBusy}
               onClick={() => void submitForgotPassword()}
-              className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60 mt-[50px]"
             >
               {isBusy ? "Sending..." : "Send Reset Code"}
             </button>
@@ -310,55 +306,15 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
               type="button"
               disabled={isBusy}
               onClick={() => void submitResetPassword()}
-              className="mt-2 inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-block w-full rounded bg-[#1f6f5f] px-3 py-[11px] text-center text-sm font-semibold text-white disabled:opacity-60 mt-[50px]"
             >
               {isBusy ? "Resetting..." : "Confirm Password Reset"}
             </button>
           ) : null}
 
-            {statusMessage ? <p className="mt-3 text-center text-xs text-[#333]">{statusMessage}</p> : null}
+            {statusMessage ? <p className="text-center text-xs text-[#333]">{statusMessage}</p> : null}
             </section>
           </div>
-
-          <aside className="h-fit rounded border border-[#e3e3e3] bg-white p-4">
-            <p className="text-sm font-semibold text-[#222]">Admin Account</p>
-            <p className="mt-1 text-xs text-[#555]">
-              Use this quick panel to jump directly into the admin account login page.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = adminMode ? "/login" : "/login?admin=1";
-              }}
-              className="mt-3 w-full rounded border border-[#c8c8c8] px-3 py-2 text-sm transition hover:bg-[#f3f3f3]"
-            >
-              {adminMode ? "Go to Applicant Login" : "Go to Admin Login"}
-            </button>
-            <div className="mt-4 border-t border-[#ececec] pt-3">
-              <p className="text-xs font-semibold text-[#444]">Temporary Dashboard Hooks</p>
-              <p className="mt-1 text-xs text-[#666]">
-                Use these only for temporary non-auth UI navigation.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = "/applicant-dashboard";
-                }}
-                className="mt-2 w-full rounded border border-[#c8c8c8] px-3 py-2 text-sm transition hover:bg-[#f3f3f3]"
-              >
-                Open Applicant Dashboard
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = "/admin-dashboard";
-                }}
-                className="mt-2 w-full rounded border border-[#c8c8c8] px-3 py-2 text-sm transition hover:bg-[#f3f3f3]"
-              >
-                Open Admin Dashboard
-              </button>
-            </div>
-          </aside>
         </div>
 
         <div className="mt-8 flex w-full items-center gap-6 text-[#d0d0d0]">

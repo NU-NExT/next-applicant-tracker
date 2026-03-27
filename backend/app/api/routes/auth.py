@@ -22,7 +22,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class AuthLoginRequest(BaseModel):
     email: str
     password: str
-    admin_mode: bool = False
 
 
 class AuthRegisterApplicantRequest(BaseModel):
@@ -124,18 +123,32 @@ def _secret_hash(username: str) -> str | None:
     return base64.b64encode(digest).decode("utf-8")
 
 
-def _is_admin_user(cognito: Any, access_token: str, db: Session) -> tuple[bool, str | None]:
+def _is_in_admin_group(cognito: Any, cognito_username: str) -> bool:
+    if not settings.cognito_user_pool_id:
+        return False
     try:
-        user_resp = cognito.get_user(AccessToken=access_token)
-        username = user_resp.get("Username")
-        if not username:
-            return False, None
-        attrs = _attributes_map(user_resp.get("UserAttributes"))
-        email = attrs.get("email", username if "@" in username else f"{username}@northeastern.edu").strip().lower()
-        user = db.query(User).filter(User.email == email).first()
-        return bool(user and user.is_admin), username
+        response = cognito.admin_list_groups_for_user(
+            UserPoolId=settings.cognito_user_pool_id,
+            Username=cognito_username,
+        )
+        groups = response.get("Groups", [])
+        return any(group.get("GroupName") == settings.cognito_admin_group_name for group in groups)
     except ClientError:
-        return False, None
+        return False
+
+
+def _ensure_admin_group_membership(cognito: Any, cognito_username: str) -> None:
+    if not settings.cognito_user_pool_id:
+        return
+    try:
+        cognito.admin_add_user_to_group(
+            UserPoolId=settings.cognito_user_pool_id,
+            Username=cognito_username,
+            GroupName=settings.cognito_admin_group_name,
+        )
+    except ClientError:
+        # Keep login non-blocking if group sync fails.
+        return
 
 
 def _attributes_map(attributes: list[dict[str, str]] | None) -> dict[str, str]:
@@ -266,24 +279,24 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
     if not access_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access token.")
     profile = _cognito_profile(cognito, access_token)
-    _upsert_cognito_user(
+    active_user = _upsert_cognito_user(
         db,
         email=profile["email"],
         username=profile["username"],
         raw_password=payload.password,
-        first_name=profile["first_name"],
-        last_name=profile["last_name"],
     )
+    group_is_admin = _is_in_admin_group(cognito, cognito_username)
+    db_is_admin = bool(active_user.is_admin)
+    resolved_is_admin = db_is_admin or group_is_admin
+    if resolved_is_admin and not group_is_admin:
+        _ensure_admin_group_membership(cognito, cognito_username)
+    if active_user.is_admin != resolved_is_admin:
+        active_user.is_admin = resolved_is_admin
+        db.add(active_user)
+        db.commit()
+        db.refresh(active_user)
 
-    if payload.admin_mode:
-        is_admin, _ = _is_admin_user(cognito, access_token, db)
-        if not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Administrator access is restricted to ADMIN accounts.",
-            )
-    active_user = db.query(User).filter(User.email == profile["email"]).first()
-    if active_user is not None and not active_user.is_active:
+    if not active_user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated.")
 
     return {
@@ -292,7 +305,11 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
         "refresh_token": result.get("RefreshToken"),
         "expires_in": result.get("ExpiresIn"),
         "token_type": result.get("TokenType", "Bearer"),
-        "username": username,
+        "username": profile["username"],
+        "email": active_user.email,
+        "first_name": active_user.first_name,
+        "last_name": active_user.last_name,
+        "is_admin": active_user.is_admin,
     }
 
 

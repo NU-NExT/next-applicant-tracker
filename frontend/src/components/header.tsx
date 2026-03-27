@@ -97,6 +97,7 @@ export function Header() {
     localStorage.removeItem("auth_refresh_token");
     localStorage.removeItem("auth_user_name");
     localStorage.removeItem("auth_user_email");
+    localStorage.removeItem("auth_is_admin");
     setIsLoggedIn(false);
     setIdentityLabel("");
     setProfileMenuOpen(false);
@@ -140,6 +141,7 @@ export function Header() {
         localStorage.removeItem("auth_refresh_token");
         localStorage.removeItem("auth_user_name");
         localStorage.removeItem("auth_user_email");
+        localStorage.removeItem("auth_is_admin");
       }
     };
 
@@ -219,30 +221,11 @@ export function Header() {
           ) : (
             <a
               href="/login"
-              className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
-              aria-label="Sign in"
-              title="Sign in"
-            >
-              <CircleUserRound className="h-5 w-5" />
-            </a>
-          )}
-          {!isLoggedIn ? (
-            <a
-              href="/login?admin=1"
-              className="rounded border border-white/70 px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"
+              className="rounded px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"
             >
               Login
             </a>
-          ) : null}
-          <button
-            type="button"
-            className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
-            aria-label="Toggle Menu"
-            aria-expanded={open}
-            onClick={() => setOpen((prev) => !prev)}
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          )}
         </div>
       </nav>
 

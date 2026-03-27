@@ -35,7 +35,7 @@ export function App() {
 
   if (path === "/login") {
     const jobIdFromQuery = searchParams.get("job");
-    return <LoginPage adminMode={searchParams.get("admin") === "1"} jobId={jobIdFromQuery ?? undefined} />;
+    return <LoginPage jobId={jobIdFromQuery ?? undefined} />;
   }
 
   if (path === "/job-board") {

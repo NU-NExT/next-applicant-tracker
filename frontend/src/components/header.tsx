@@ -192,7 +192,7 @@ export function Header() {
               <AnimatePresence>
                 {profileMenuOpen ? (
                   <motion.div
-                    className="absolute right-0 top-11 w-32 bg-black text-white shadow-lg"
+                    className="absolute right-0 top-11 w-full bg-black text-white shadow-lg"
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}

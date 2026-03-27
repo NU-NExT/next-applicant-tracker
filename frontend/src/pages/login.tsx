@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 import {
+  authLogin,
   authConfirmForgotPassword,
   authForgotPassword,
   authRegisterApplicant,
   getMyProfile,
 } from "../api";
-import { beginHostedLogin, completeHostedLoginFromUrl, isHostedLoginConfigured } from "../cognitoHostedAuth";
 import { Header } from "../components/header";
 
 type LoginPageProps = {
@@ -16,7 +16,6 @@ type LoginPageProps = {
 };
 
 export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
-  const hostedLoginEnabled = isHostedLoginConfigured();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
@@ -26,6 +25,9 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
   const [isBusy, setIsBusy] = useState(false);
   const [hasToken, setHasToken] = useState<boolean>(() => Boolean(localStorage.getItem("auth_access_token")));
   const nextApplicantPath = useMemo(() => (jobId ? `/jobs/${jobId}` : "/applicant-dashboard"), [jobId]);
+  const signupReturnToPath = useMemo(() => (jobId ? `/jobs/${jobId}/login` : "/login"), [jobId]);
+
+  const isNortheasternEmail = (value: string): boolean => value.trim().toLowerCase().endsWith("@northeastern.edu");
 
   const useExistingAccount = () => {
     window.location.href = adminMode ? "/admin-dashboard" : nextApplicantPath;
@@ -49,6 +51,11 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
 
     try {
       const profile = await getMyProfile(accessToken);
+      localStorage.setItem("auth_user_email", profile.email);
+      localStorage.setItem(
+        "auth_user_name",
+        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email
+      );
       const hasConsent = Boolean(profile.consented_at) || Boolean((profile.user_metadata as Record<string, unknown>)?.consent);
       if (!hasConsent) {
         window.location.href = `/consent?next=${encodeURIComponent(nextPath)}`;
@@ -63,55 +70,53 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
   };
 
   useEffect(() => {
-    if (!hostedLoginEnabled) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const callbackData = await completeHostedLoginFromUrl();
-        if (!callbackData || cancelled) return;
-
-        const { tokens, context } = callbackData;
-        localStorage.setItem("auth_access_token", tokens.access_token);
-        localStorage.setItem("auth_id_token", tokens.id_token);
-        if (tokens.refresh_token) {
-          localStorage.setItem("auth_refresh_token", tokens.refresh_token);
-        }
-
-        await finishLogin(tokens.access_token, context.nextPath, context.adminMode);
-      } catch (error) {
-        if (cancelled) return;
-        setStatusMessage(getErrorDetail(error, "Cognito sign in failed. Please try again."));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hostedLoginEnabled]);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "1") {
+      setMode("signin");
+      setStatusMessage("Email verified. Sign in with the email and password you created.");
+    }
+  }, []);
 
   const submitSignIn = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isNortheasternEmail(normalizedEmail)) {
+      setStatusMessage("Please use your @northeastern.edu email address.");
+      return;
+    }
+
     setIsBusy(true);
     setStatusMessage("");
     try {
-      if (!hostedLoginEnabled) {
-        throw new Error("Cognito Hosted UI is not configured in frontend environment.");
+      const auth = await authLogin({
+        email: normalizedEmail,
+        password,
+        admin_mode: adminMode,
+      });
+      localStorage.setItem("auth_id_token", auth.id_token);
+      if (auth.refresh_token) {
+        localStorage.setItem("auth_refresh_token", auth.refresh_token);
       }
-      await beginHostedLogin({ adminMode, nextPath: nextApplicantPath });
+      await finishLogin(auth.access_token, nextApplicantPath, adminMode);
     } catch (error) {
-      setStatusMessage(getErrorDetail(error, "Unable to start Cognito hosted login."));
+      setStatusMessage(getErrorDetail(error, "Sign in failed. Check your email verification and password."));
     } finally {
       setIsBusy(false);
     }
   };
 
   const submitSignUp = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isNortheasternEmail(normalizedEmail)) {
+      setStatusMessage("Please use your @northeastern.edu email address.");
+      return;
+    }
+
     setIsBusy(true);
     setStatusMessage("");
     try {
-      await authRegisterApplicant({ email, password });
-      setStatusMessage("Applicant account created. Please sign in.");
-      setMode("signin");
+      await authRegisterApplicant({ email: normalizedEmail, password, return_to: signupReturnToPath });
+      setStatusMessage("Signup received. Check your Northeastern inbox for the verification link, then sign in.");
+      setMode("signup");
     } catch (error) {
       setStatusMessage(
         getErrorDetail(error, "Registration failed. Only @northeastern.edu applicant accounts are allowed.")
@@ -204,15 +209,7 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             <p className="mb-3 text-sm text-[#333]">Administrator Sign In (ADMIN only)</p>
           )}
 
-          {hostedLoginEnabled && mode === "signin" ? (
-            <p className="mb-3 rounded border border-[#d6e9e3] bg-[#eef8f5] px-3 py-2 text-xs text-[#1f463d]">
-              Sign in is managed by AWS Cognito Hosted UI.
-            </p>
-          ) : mode === "signin" ? (
-            <p className="mb-3 rounded border border-[#efd4d4] bg-[#fff1f1] px-3 py-2 text-xs text-[#722]">
-              Cognito Hosted UI is not configured. Set `VITE_COGNITO_DOMAIN` and `VITE_COGNITO_CLIENT_ID`.
-            </p>
-          ) : (
+          {mode === "signin" || mode === "signup" || mode === "forgot" || mode === "reset" ? (
             <label className="mb-3 block text-[13px] text-[#444]">
               Email
               <input
@@ -222,7 +219,20 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
                 className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
               />
             </label>
-          )}
+          ) : null}
+
+          {mode === "signin" ? (
+            <label className="mb-3 block text-[13px] text-[#444]">
+              Password
+              <input
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1.5 block w-full rounded-[3px] border border-[#d6d6d6] px-2.5 py-2 text-[13px]"
+              />
+            </label>
+          ) : null}
           {mode === "reset" ? (
             <>
               <label className="mb-3 block text-[13px] text-[#444]">
@@ -267,13 +277,9 @@ export function LoginPage({ jobId, adminMode = false }: LoginPageProps) {
             >
               {isBusy
                 ? "Signing In..."
-                : hostedLoginEnabled
-                  ? adminMode
-                    ? "Continue to Admin Sign In"
-                    : "Continue to Applicant Sign In"
-                  : adminMode
-                    ? "Sign In as Admin"
-                    : "Sign In as Applicant"}
+                : adminMode
+                  ? "Sign In as Admin"
+                  : "Sign In as Applicant"}
             </button>
           ) : null}
 

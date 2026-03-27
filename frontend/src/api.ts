@@ -165,6 +165,7 @@ export type AuthLoginResponse = {
 export type AuthRegisterApplicantPayload = {
   email: string;
   password: string;
+  return_to?: string;
 };
 
 export type AuthForgotPasswordPayload = {

@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import re
 from typing import Any
 
 import boto3
@@ -13,7 +14,7 @@ from app.config import settings
 from app.db import get_db
 from app.models.models import User
 from app.security.passwords import hash_password
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -27,6 +28,13 @@ class AuthLoginRequest(BaseModel):
 class AuthRegisterApplicantRequest(BaseModel):
     email: str
     password: str
+    return_to: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_northeastern_email(cls, value: str) -> str:
+        email, _ = _northeastern_username_from_email(value)
+        return email
 
 
 class AuthForgotPasswordRequest(BaseModel):
@@ -81,9 +89,27 @@ def _northeastern_username_from_email(raw_email: str) -> tuple[str, str]:
 
 
 def _cognito_username(email: str, username: str) -> str:
-    # This project configures Cognito to use email-style usernames.
-    # Keep local `username` for internal metadata, but send email to Cognito APIs.
+    # This user pool requires email-style usernames.
+    # Keep local `username` for internal metadata, but use email in Cognito auth APIs.
+    _ = username  # retained for signature compatibility with existing callers
     return email
+
+
+_RETURN_TO_JOB_LOGIN_RE = re.compile(r"^/jobs/[^/?#]+/login$")
+
+
+def _normalize_return_to(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    if value == "/login" or _RETURN_TO_JOB_LOGIN_RE.match(value):
+        return value
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid return path for signup verification.",
+    )
 
 
 def _secret_hash(username: str) -> str | None:
@@ -179,6 +205,7 @@ def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depe
     cognito_username = _cognito_username(email, username)
     cognito = _get_cognito_client()
     hash_value = _secret_hash(cognito_username)
+    return_to = _normalize_return_to(payload.return_to)
 
     try:
         sign_up_payload: dict[str, Any] = {
@@ -191,6 +218,8 @@ def register_applicant(payload: AuthRegisterApplicantRequest, db: Session = Depe
         }
         if hash_value:
             sign_up_payload["SecretHash"] = hash_value
+        if return_to:
+            sign_up_payload["ClientMetadata"] = {"return_to": return_to}
 
         cognito.sign_up(
             **sign_up_payload

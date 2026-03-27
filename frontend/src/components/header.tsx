@@ -1,5 +1,7 @@
 import { CircleUserRound, Menu, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { getMyProfile } from "../api";
 
 type MenuSection = {
   title: string;
@@ -47,8 +49,11 @@ const sections: MenuSection[] = [
 export function Header() {
   const [open, setOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [identityLabel, setIdentityLabel] = useState("");
   const headerRef = useRef<HTMLElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(64);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   useEffect(() => {
     const header = headerRef.current;
@@ -68,7 +73,93 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    setIsLoggedIn(Boolean(localStorage.getItem("auth_access_token")));
+    if (!profileMenuOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (profileMenuRef.current?.contains(target)) return;
+      setProfileMenuOpen(false);
+    };
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onClickOutside);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("mousedown", onClickOutside);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [profileMenuOpen]);
+
+  const logout = () => {
+    localStorage.removeItem("auth_access_token");
+    localStorage.removeItem("auth_id_token");
+    localStorage.removeItem("auth_refresh_token");
+    localStorage.removeItem("auth_user_name");
+    localStorage.removeItem("auth_user_email");
+    setIsLoggedIn(false);
+    setIdentityLabel("");
+    setProfileMenuOpen(false);
+    window.location.href = "/";
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncAuthState = async () => {
+      const token = localStorage.getItem("auth_access_token");
+      const loggedIn = Boolean(token);
+      setIsLoggedIn(loggedIn);
+      if (!loggedIn) {
+        setIdentityLabel("");
+        return;
+      }
+
+      const cachedName = (localStorage.getItem("auth_user_name") ?? "").trim();
+      const cachedEmail = (localStorage.getItem("auth_user_email") ?? "").trim();
+      const cachedIdentity = cachedName || cachedEmail;
+      if (cachedIdentity) {
+        setIdentityLabel(cachedIdentity);
+      }
+
+      if (!token) return;
+      try {
+        const profile = await getMyProfile(token);
+        if (cancelled) return;
+        const nextName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email;
+        setIdentityLabel(nextName);
+        localStorage.setItem("auth_user_name", nextName);
+        localStorage.setItem("auth_user_email", profile.email);
+      } catch {
+        // If token is stale/invalid, clear auth state for consistent header behavior.
+        if (cancelled) return;
+        setIsLoggedIn(false);
+        setIdentityLabel("");
+        localStorage.removeItem("auth_access_token");
+        localStorage.removeItem("auth_id_token");
+        localStorage.removeItem("auth_refresh_token");
+        localStorage.removeItem("auth_user_name");
+        localStorage.removeItem("auth_user_email");
+      }
+    };
+
+    void syncAuthState();
+
+    const onStorage = () => {
+      void syncAuthState();
+    };
+    const onFocus = () => {
+      void syncAuthState();
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   return (
@@ -84,21 +175,65 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           {isLoggedIn ? (
+            <div ref={profileMenuRef} className="relative flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 border-none bg-transparent px-2 text-white transition hover:bg-white/10"
+                aria-label="Account menu"
+                title={identityLabel || "Account menu"}
+                aria-expanded={profileMenuOpen}
+                onClick={() => setProfileMenuOpen((prev) => !prev)}
+              >
+                {identityLabel ? (
+                  <span className="hidden items-center text-xs leading-none text-white/90 md:inline-flex">{identityLabel}</span>
+                ) : null}
+                <CircleUserRound className="h-5 w-5" />
+              </button>
+              <AnimatePresence>
+                {profileMenuOpen ? (
+                  <motion.div
+                    className="absolute right-0 top-11 w-32 bg-black text-white shadow-lg"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                  >
+                    <a
+                      href="/profile"
+                      className="block px-3 py-2 text-sm text-white no-underline transition hover:bg-white/10"
+                      onClick={() => setProfileMenuOpen(false)}
+                    >
+                      My profile
+                    </a>
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-2 text-left text-sm text-white transition hover:bg-white/10"
+                      onClick={logout}
+                    >
+                      Logout
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          ) : (
             <a
-              href="/profile"
+              href="/login"
               className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"
-              aria-label="My profile"
-              title="My profile"
+              aria-label="Sign in"
+              title="Sign in"
             >
               <CircleUserRound className="h-5 w-5" />
             </a>
+          )}
+          {!isLoggedIn ? (
+            <a
+              href="/login?admin=1"
+              className="rounded border border-white/70 px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"
+            >
+              Login
+            </a>
           ) : null}
-          <a
-            href="/login?admin=1"
-            className="rounded border border-white/70 px-3 py-1.5 text-sm text-white no-underline transition hover:bg-white/10"
-          >
-            Login
-          </a>
           <button
             type="button"
             className="grid h-9 w-9 place-items-center rounded border border-white/70 bg-transparent text-white transition hover:bg-white/10"

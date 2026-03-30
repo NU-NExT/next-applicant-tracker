@@ -44,13 +44,13 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-application_tracker}
+      POSTGRES_DB: ${POSTGRES_DB:-next-ats-db}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-application_tracker}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-next-ats-db}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -65,13 +65,19 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       - ENVIRONMENT=development
-      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-application_tracker}
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-next-ats-db}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-s3}
       - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://localstack:4566}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
       - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH:-/app/data}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID:-}
+      - COGNITO_APP_CLIENT_ID=${COGNITO_APP_CLIENT_ID:-}
+      - COGNITO_APP_CLIENT_SECRET=${COGNITO_APP_CLIENT_SECRET:-}
+      - COGNITO_ADMIN_GROUP_NAME=${COGNITO_ADMIN_GROUP_NAME:-ADMIN}
+      - WATCHFILES_FORCE_POLLING=true
     volumes:
       - ./backend:/app
     depends_on:
@@ -93,12 +99,17 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      - VITE_COGNITO_DOMAIN=${VITE_COGNITO_DOMAIN:-}
+      - VITE_COGNITO_CLIENT_ID=${VITE_COGNITO_CLIENT_ID:-}
+      - VITE_COGNITO_REDIRECT_URI=${VITE_COGNITO_REDIRECT_URI:-http://localhost:3000/login}
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=100
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend-dev
-    command: npm run dev -- --host 0.0.0.0 --port 3000
+    command: sh -c "[ -d node_modules/@tailwindcss/vite ] || npm install; npm run dev -- --host 0.0.0.0 --port 3000"
 
   backend:
     build:
@@ -115,6 +126,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+      - COGNITO_APP_CLIENT_ID=${COGNITO_APP_CLIENT_ID}
+      - COGNITO_APP_CLIENT_SECRET=${COGNITO_APP_CLIENT_SECRET}
+      - COGNITO_ADMIN_GROUP_NAME=${COGNITO_ADMIN_GROUP_NAME}
 
   frontend:
     build:
@@ -122,6 +138,9 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+        - VITE_COGNITO_DOMAIN=${VITE_COGNITO_DOMAIN}
+        - VITE_COGNITO_CLIENT_ID=${VITE_COGNITO_CLIENT_ID}
+        - VITE_COGNITO_REDIRECT_URI=${VITE_COGNITO_REDIRECT_URI}
     container_name: application_tracker_frontend
     profiles: ["prod"]
     ports:

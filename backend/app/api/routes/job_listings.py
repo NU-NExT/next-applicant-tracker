@@ -178,10 +178,10 @@ def delete_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> No
     db.commit()
 
 
-@router.get("/by-position-code/{position_code}", response_model=JobListingRead)
-def get_job_listing_by_position_code(position_code: str, db: Session = Depends(get_db)) -> JobListing:
+@router.get("/by-position-code/{position_code}")
+def get_job_listing_by_position_code(position_code: str, db: Session = Depends(get_db)) -> dict:
     normalized = position_code.strip().upper()
     job_listing = db.query(JobListing).filter(JobListing.code_id == normalized).first()
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
-    return job_listing
+    return {"listing_id": job_listing.listing_id, "code_id": job_listing.code_id}

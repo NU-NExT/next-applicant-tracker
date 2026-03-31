@@ -42,7 +42,21 @@ def _attributes_map(attributes: list[dict[str, str]] | None) -> dict[str, str]:
     return mapped
 
 
+DEV_TOKEN_PREFIX = "dev-token::"
+
+
 def get_identity_from_token(access_token: str) -> dict[str, str]:
+    # Dev-only bypass: token "dev-token::email@example.com" skips Cognito
+    if settings.environment == "development" and access_token.startswith(DEV_TOKEN_PREFIX):
+        email = access_token[len(DEV_TOKEN_PREFIX):].strip().lower()
+        local = email.split("@")[0]
+        return {
+            "username": local,
+            "email": email,
+            "first_name": local.replace(".", " ").title().split()[0] if local else "Dev",
+            "last_name": local.replace(".", " ").title().split()[-1] if local else "User",
+        }
+
     client = cognito_client()
     try:
         response = client.get_user(AccessToken=access_token)

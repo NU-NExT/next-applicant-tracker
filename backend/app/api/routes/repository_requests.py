@@ -7,7 +7,7 @@ from app.api.authn import ensure_admin_user, get_or_create_user_from_access_toke
 from app.api.schemas import ApplicationSubmissionCreate, ApplicationSubmissionRead, ApplicationSubmissionStatusUpdate
 from app.config import settings
 from app.db import get_db
-from app.models.models import ApplicationSubmission, JobListing
+from app.models.models import ApplicationSubmission, JobListing, Profile
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/api/repository-requests", tags=["repository-requests"])
@@ -99,9 +99,24 @@ def create_repository_request(
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
 
+    existing = (
+        db.query(ApplicationSubmission)
+        .filter(
+            ApplicationSubmission.applicant_email == user.email,
+            ApplicationSubmission.job_listing_id == resolved_job_listing_id,
+        )
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already submitted an application for this position.",
+        )
+
     payload_data = payload.model_dump()
     payload_data["job_listing_id"] = resolved_job_listing_id
     payload_data.pop("job_listing_slug", None)
+    payload_data.pop("profile_snapshot_json", None)
     if not payload_data.get("status"):
         payload_data["status"] = "applied"
     payload_data["applicant_email"] = user.email
@@ -126,12 +141,23 @@ def create_repository_request(
         user.user_metadata = merge_metadata(user.user_metadata, {"global_profile": global_updates})
         db.add(user)
 
+    profile = db.query(Profile).filter(Profile.user_id == user.user_id).first()
+    profile_data = {}
+    if profile is not None:
+        for f in [
+            "full_legal_name", "phone_number", "expected_graduation_date", "current_year",
+            "coop_number", "major", "minor", "concentration", "college", "gpa",
+            "github_url", "linkedin_url", "club", "past_experience_count", "unique_experience_count",
+        ]:
+            profile_data[f] = getattr(profile, f, None)
+
     snapshot = merge_metadata(
         {
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "user_metadata": user.user_metadata,
+            **profile_data,
         },
         payload.profile_snapshot_json or {},
     )

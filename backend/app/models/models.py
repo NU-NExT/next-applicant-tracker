@@ -123,6 +123,8 @@ class Profile(Base):
     gpa: Mapped[str | None] = mapped_column(String(16), nullable=True)
     github_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    personal_website_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    college: Mapped[str | None] = mapped_column(String(128), nullable=True)
     club: Mapped[str | None] = mapped_column(String(255), nullable=True)
     past_experience_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     unique_experience_count: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -12,7 +12,7 @@ import { JobDetailPage } from "./pages/job-detail";
 import { JobBoardPage } from "./pages/job-board";
 import { LoginPage } from "./pages/login";
 import { ProfilePage } from "./pages/profile";
-import { RepositoryRequestPage } from "./pages/repository-request";
+import { ApplicationWizardPage } from "./pages/application-wizard";
 
 function normalizePath(pathname: string): string {
   return pathname.replace(/\/+$/, "") || "/";
@@ -75,7 +75,7 @@ export function App() {
 
   if (path === "/apply") {
     const positionCode = searchParams.get("position");
-    return <RepositoryRequestPage jobId={positionCode ?? "1"} />;
+    return <ApplicationWizardPage positionCode={positionCode ?? undefined} />;
   }
 
   if (path === "/profile") {
@@ -93,7 +93,7 @@ export function App() {
 
   const jobApplyMatch = path.match(/^\/jobs\/([^/]+)\/apply$/);
   if (jobApplyMatch) {
-    return <RepositoryRequestPage jobId={jobApplyMatch[1]} />;
+    return <ApplicationWizardPage jobId={jobApplyMatch[1]} />;
   }
 
   const jobDetailMatch = path.match(/^\/jobs\/([^/]+)$/);

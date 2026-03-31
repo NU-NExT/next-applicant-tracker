@@ -13,6 +13,7 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
       - AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
+      - LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT=1
     volumes:
       - ./localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock

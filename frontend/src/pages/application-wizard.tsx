@@ -2,70 +2,78 @@ import { useEffect, useState } from "react";
 
 import {
   createRepositoryRequest,
-  getFieldOptions,
   getJobListingByPositionCode,
   getMyFullProfile,
   getMyRepositoryRequests,
   getRepositoryQuestions,
   getRepositoryQuestionsByPosition,
   updateMyFullProfile,
-  type FieldOptionRecord,
-  type ProfileFull,
   type RepositoryQuestion,
 } from "../api";
 import { Header } from "../components/header";
-import { WizardStepper } from "../components/wizard/WizardStepper";
-import { StepResumeUpload } from "../components/wizard/StepResumeUpload";
-import { StepProfileFields, type ProfileFormData } from "../components/wizard/StepProfileFields";
+import {
+  EMPTY_PROFILE_FORM,
+  joinClubList,
+  profileFullToProfileForm,
+  type ProfileFormData,
+} from "../components/profile/profileFormModel";
 import { StepPositionQuestions } from "../components/wizard/StepPositionQuestions";
+import { StepProfileFields } from "../components/wizard/StepProfileFields";
+import { StepResumeUpload } from "../components/wizard/StepResumeUpload";
 import { StepReviewSubmit } from "../components/wizard/StepReviewSubmit";
+import { WizardStepper } from "../components/wizard/WizardStepper";
 
 type ApplicationWizardPageProps = {
   positionCode?: string;
   jobId?: string;
 };
 
-/** Map of global prompts (lowercase) to profile field names for building responses_json */
-const GLOBAL_PROMPT_MAP: Record<string, keyof ProfileFormData> = {
-  "full legal name": "full_legal_name",
-  "preferred name (optional)": "first_name",
-  "northeastern email": "email",
-  "expected graduation date": "expected_graduation_date",
-  "current year / grade level": "current_year",
-  "co-op number (1st, 2nd, 3rd, etc.)": "coop_number",
-  "major(s) - selected from a maintained dropdown list": "major",
-  "minor(s) - selected from a maintained dropdown list (optional)": "minor",
-  "concentration - selected from a maintained dropdown list (optional)": "concentration",
-  "college / school within northeastern": "college",
-  "gpa (optional)": "gpa",
-  "github url (optional)": "github_url",
-  "linkedin url (optional)": "linkedin_url",
-  "clubs and extracurricular activities (list)": "club",
-  "count of paid work experiences since high school graduation": "past_experience_count",
-  "count of unpaid/volunteer experiences since high school graduation": "unique_experience_count",
+type GlobalAnswerContext = {
+  coopNumber: string;
+  college: string;
 };
 
-function profileToFormData(p: ProfileFull): ProfileFormData {
-  return {
-    full_legal_name: p.full_legal_name ?? "",
-    first_name: p.first_name ?? "",
-    last_name: p.last_name ?? "",
-    email: p.email ?? "",
-    expected_graduation_date: p.expected_graduation_date ?? "",
-    current_year: p.current_year ?? "",
-    coop_number: p.coop_number ?? "",
-    major: p.major ?? "",
-    minor: p.minor ?? "",
-    concentration: p.concentration ?? "",
-    college: p.college ?? "",
-    gpa: p.gpa ?? "",
-    github_url: p.github_url ?? "",
-    linkedin_url: p.linkedin_url ?? "",
-    personal_website_url: p.personal_website_url ?? "",
-    club: p.club ?? "",
-    past_experience_count: p.past_experience_count,
-    unique_experience_count: p.unique_experience_count,
-  };
+function resolveGlobalAnswer(prompt: string, profile: ProfileFormData, context: GlobalAnswerContext): string {
+  switch (prompt.toLowerCase()) {
+    case "full legal name":
+      return profile.fullLegalName;
+    case "preferred name (optional)":
+      return profile.preferredName;
+    case "pronouns":
+      return profile.pronouns;
+    case "northeastern email":
+      return profile.email;
+    case "expected graduation date":
+      return profile.expectedGraduationDate;
+    case "current year / grade level":
+      return profile.currentYear;
+    case "co-op number (1st, 2nd, 3rd, etc.)":
+      return context.coopNumber;
+    case "major(s) - selected from a maintained dropdown list":
+      return profile.major;
+    case "minor(s) - selected from a maintained dropdown list (optional)":
+      return profile.minor;
+    case "concentration - selected from a maintained dropdown list (optional)":
+      return profile.concentration;
+    case "college / school within northeastern":
+      return context.college;
+    case "gpa (optional)":
+      return profile.gpa;
+    case "github url (optional)":
+      return profile.githubUrl;
+    case "linkedin url (optional)":
+      return profile.linkedinUrl;
+    case "clubs and extracurricular activities (list)":
+      return joinClubList(profile.clubs);
+    case "count of paid work experiences since high school graduation":
+      return profile.paidExperienceCount;
+    case "count of unpaid/volunteer experiences since high school graduation":
+      return profile.unpaidExperienceCount;
+    case "any other information that would be relevant":
+      return profile.otherRelevantInformation;
+    default:
+      return "";
+  }
 }
 
 export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizardPageProps) {
@@ -83,20 +91,11 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
   const [resumeViewUrl, setResumeViewUrl] = useState("");
 
   // Profile state (step 2)
-  const [profileData, setProfileData] = useState<ProfileFormData>({
-    full_legal_name: "", first_name: "", last_name: "", email: "",
-    expected_graduation_date: "", current_year: "", coop_number: "",
-    major: "", minor: "", concentration: "", college: "", gpa: "",
-    github_url: "", linkedin_url: "", personal_website_url: "", club: "",
-    past_experience_count: null, unique_experience_count: null,
+  const [profileData, setProfileData] = useState<ProfileFormData>(EMPTY_PROFILE_FORM);
+  const [globalAnswerContext, setGlobalAnswerContext] = useState<GlobalAnswerContext>({
+    coopNumber: "",
+    college: "",
   });
-
-  // Field options for dropdowns
-  const [fieldOptions, setFieldOptions] = useState<{
-    major: FieldOptionRecord[];
-    minor: FieldOptionRecord[];
-    concentration: FieldOptionRecord[];
-  }>({ major: [], minor: [], concentration: [] });
 
   // Position questions (step 3) — non-global only
   const [positionQuestions, setPositionQuestions] = useState<RepositoryQuestion[]>([]);
@@ -116,14 +115,8 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
       setLoading(false);
       return;
     }
-    void (async () => {
-      // Fetch field options independently — they shouldn't fail with other requests
-      const optionsPromise = Promise.all([
-        getFieldOptions("major").catch(() => [] as FieldOptionRecord[]),
-        getFieldOptions("minor").catch(() => [] as FieldOptionRecord[]),
-        getFieldOptions("concentration").catch(() => [] as FieldOptionRecord[]),
-      ]);
 
+    void (async () => {
       try {
         const profilePromise = getMyFullProfile(accessToken);
         const questionsPromise = isNumeric
@@ -136,13 +129,17 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           : getJobListingByPositionCode(identifier.toUpperCase()).catch(() => null);
 
         const [profile, questions, myApps, jobListing] = await Promise.all([
-          profilePromise, questionsPromise, myAppsPromise, jobListingPromise,
+          profilePromise,
+          questionsPromise,
+          myAppsPromise,
+          jobListingPromise,
         ]);
 
-        const [majors, minors, concentrations] = await optionsPromise;
-
-        setProfileData(profileToFormData(profile));
-        setFieldOptions({ major: majors, minor: minors, concentration: concentrations });
+        setProfileData(profileFullToProfileForm(profile));
+        setGlobalAnswerContext({
+          coopNumber: profile.coop_number ?? "",
+          college: profile.college ?? "",
+        });
 
         setAllQuestions(questions);
         setPositionQuestions(questions.filter((q) => !q.is_global));
@@ -157,9 +154,6 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           setAlreadyApplied(myApps.some((a) => a.job_listing_id === listingId));
         }
       } catch {
-        // Still try to populate field options even if other fetches fail
-        const [majors, minors, concentrations] = await optionsPromise;
-        setFieldOptions({ major: majors, minor: minors, concentration: concentrations });
         setError("Failed to load application data. Please try again.");
       } finally {
         setLoading(false);
@@ -212,16 +206,12 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
     // Build responses_json: global answers from profile + position answers
     const globalResponses = allQuestions
       .filter((q) => q.is_global)
-      .map((q) => {
-        const fieldKey = GLOBAL_PROMPT_MAP[q.prompt.toLowerCase()];
-        const value = fieldKey ? String(profileData[fieldKey] ?? "") : "";
-        return {
-          question: q.prompt,
-          question_type: q.question_type ?? "free_text",
-          is_global: true,
-          answer: value,
-        };
-      });
+      .map((q) => ({
+        question: q.prompt,
+        question_type: q.question_type ?? "free_text",
+        is_global: true,
+        answer: resolveGlobalAnswer(q.prompt, profileData, globalAnswerContext),
+      }));
 
     const positionResponses = positionQuestions.map((q, i) => {
       const raw = positionAnswers[i] ?? "";
@@ -240,13 +230,13 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
     await createRepositoryRequest(
       {
         job_listing_id: resolvedJobListingId,
-        applicant_name: `${profileData.first_name} ${profileData.last_name}`.trim() || profileData.full_legal_name,
+        applicant_name: profileData.preferredName.trim() || profileData.fullLegalName,
         applicant_email: profileData.email,
         resume_s3_key: resumeS3Key || undefined,
         responses_json: JSON.stringify([...globalResponses, ...positionResponses]),
         status: "applied",
       },
-      accessToken
+      accessToken,
     );
   };
 
@@ -281,10 +271,10 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           {step === 1 && (
             <StepProfileFields
               data={profileData}
-              fieldOptions={fieldOptions}
               onChange={(updates) => setProfileData((prev) => ({ ...prev, ...updates }))}
-              onSaveAndNext={async (payload) => {
+              onSaveAndNext={async (payload, normalizedClubs) => {
                 await updateMyFullProfile(accessToken, payload);
+                setProfileData((prev) => ({ ...prev, clubs: normalizedClubs }));
                 setStep(2);
               }}
               onBack={() => setStep(0)}

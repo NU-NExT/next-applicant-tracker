@@ -150,6 +150,7 @@ export type ProfileFull = {
   // Profile fields
   full_legal_name: string | null;
   phone_number: string | null;
+  pronouns: string | null;
   expected_graduation_date: string | null;
   current_year: string | null;
   coop_number: string | null;
@@ -162,6 +163,7 @@ export type ProfileFull = {
   linkedin_url: string | null;
   personal_website_url: string | null;
   club: string | null;
+  other_relevant_information: string | null;
   past_experience_count: number | null;
   unique_experience_count: number | null;
 };
@@ -169,9 +171,11 @@ export type ProfileFull = {
 export type ProfileFullUpdatePayload = Partial<
   Pick<ProfileFull,
     | "first_name" | "last_name" | "full_legal_name" | "phone_number"
+    | "pronouns"
     | "expected_graduation_date" | "current_year" | "coop_number"
     | "major" | "minor" | "concentration" | "college" | "gpa"
     | "github_url" | "linkedin_url" | "personal_website_url" | "club"
+    | "other_relevant_information"
     | "past_experience_count" | "unique_experience_count"
   >
 >;

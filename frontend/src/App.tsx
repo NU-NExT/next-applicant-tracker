@@ -34,7 +34,8 @@ export function App() {
   }
 
   if (path === "/login") {
-    return <LoginPage adminMode={searchParams.get("admin") === "1"} />;
+    const jobIdFromQuery = searchParams.get("job");
+    return <LoginPage jobId={jobIdFromQuery ?? undefined} />;
   }
 
   if (path === "/job-board") {

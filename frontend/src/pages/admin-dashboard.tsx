@@ -36,7 +36,7 @@ export function AdminDashboardPage() {
       <Header />
 
       <main className="mx-auto max-w-[1200px] px-4 pb-6 pt-24">
-        <h1 className="mb-4 text-5xl font-medium text-[#1f1f1f]">Welcome, JCD!</h1>
+        <h1 className="mb-4 text-5xl font-medium text-[#1f1f1f]">Welcome, {localStorage.getItem("auth_user_name") ?? "User"}!</h1>
 
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
           <section className="border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(220px,34vh,360px)]">

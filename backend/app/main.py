@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import Base, engine
 from app.api.routes.admin_review import router as admin_review_router
 from app.api.routes.admin_dashboard import router as admin_dashboard_router
 from app.api.routes.auth import router as auth_router
@@ -22,11 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health", tags=["system"])

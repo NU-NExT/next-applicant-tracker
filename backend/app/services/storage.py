@@ -29,7 +29,11 @@ class StorageService:
 
         if self.backend == "s3" and self.s3_client:
             file.file.seek(0)
-            self.s3_client.upload_fileobj(file.file, bucket, key)
+            content_type = file.content_type or "application/octet-stream"
+            self.s3_client.upload_fileobj(
+                file.file, bucket, key,
+                ExtraArgs={"ContentType": content_type},
+            )
             return key
 
         target = self.local_path / bucket / key
@@ -40,11 +44,21 @@ class StorageService:
 
     def get_view_url(self, bucket: str, key: str, expires_seconds: int = 3600) -> str:
         if self.backend == "s3" and self.s3_client:
-            return self.s3_client.generate_presigned_url(
+            url = self.s3_client.generate_presigned_url(
                 ClientMethod="get_object",
-                Params={"Bucket": bucket, "Key": key},
+                Params={
+                    "Bucket": bucket,
+                    "Key": key,
+                    "ResponseContentDisposition": "inline",
+                    "ResponseContentType": "application/pdf",
+                },
                 ExpiresIn=expires_seconds,
             )
+            # Presigned URLs use the Docker-internal endpoint (e.g. localstack:4566).
+            # Swap to localhost so the browser can reach it.
+            if settings.environment == "development" and settings.s3_endpoint_url:
+                url = url.replace("localstack:4566", "localhost:4566")
+            return url
         return key
 
 

@@ -138,6 +138,44 @@ export type UserProfile = {
   user_metadata: Record<string, unknown>;
 };
 
+export type ProfileFull = {
+  // User fields
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  consented_at?: string | null;
+  user_metadata: Record<string, unknown>;
+  // Profile fields
+  full_legal_name: string | null;
+  phone_number: string | null;
+  expected_graduation_date: string | null;
+  current_year: string | null;
+  coop_number: string | null;
+  major: string | null;
+  minor: string | null;
+  concentration: string | null;
+  college: string | null;
+  gpa: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  personal_website_url: string | null;
+  club: string | null;
+  past_experience_count: number | null;
+  unique_experience_count: number | null;
+};
+
+export type ProfileFullUpdatePayload = Partial<
+  Pick<ProfileFull,
+    | "first_name" | "last_name" | "full_legal_name" | "phone_number"
+    | "expected_graduation_date" | "current_year" | "coop_number"
+    | "major" | "minor" | "concentration" | "college" | "gpa"
+    | "github_url" | "linkedin_url" | "personal_website_url" | "club"
+    | "past_experience_count" | "unique_experience_count"
+  >
+>;
+
 export type FieldOptionRecord = {
   id: number;
   category: string;
@@ -249,6 +287,11 @@ export async function getJobData(): Promise<JobDataRecord[]> {
 
 export async function getJobListings(): Promise<JobListingRecord[]> {
   const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
+  return response.data;
+}
+
+export async function getJobListingByPositionCode(positionCode: string): Promise<Record<string, unknown>> {
+  const response = await apiClient.get<Record<string, unknown>>(`/api/job-listings/by-position-code/${positionCode}`);
   return response.data;
 }
 
@@ -400,6 +443,23 @@ export async function acceptDataConsent(accessToken: string): Promise<UserProfil
     {},
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
+  return response.data;
+}
+
+export async function getMyFullProfile(accessToken: string): Promise<ProfileFull> {
+  const response = await apiClient.get<ProfileFull>("/api/profile/me/extended", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function updateMyFullProfile(
+  accessToken: string,
+  payload: ProfileFullUpdatePayload
+): Promise<ProfileFull> {
+  const response = await apiClient.patch<ProfileFull>("/api/profile/me/extended", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   return response.data;
 }
 

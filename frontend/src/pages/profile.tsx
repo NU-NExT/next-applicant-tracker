@@ -39,7 +39,7 @@ export function ProfilePage() {
       const { payload, clubs } = profileFormToUpdatePayload(profileForm);
       await updateMyFullProfile(token, payload);
       setProfileForm((current) => ({ ...current, clubs }));
-      setStatusMessage("Profile updated. Existing submissions remain unchanged snapshots.");
+      setStatusMessage("Profile updated.");
     } catch (error) {
       if (error instanceof Error && error.message) {
         setStatusMessage(error.message);

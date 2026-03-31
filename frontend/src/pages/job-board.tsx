@@ -44,31 +44,22 @@ export function JobBoardPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <section className="grid min-h-[330px] grid-cols-[35%_65%] bg-black pt-16 text-white items-center">
-        <aside className="flex flex-col items-start justify-left gap-3.5 px-12">
-          <img src="/img/NExT Logo Lockup.svg" alt="NExT logo" className="h-[300px] w-[450px] object-contain" />
-          <h2 className="text-[42px] leading-tight">Join the Team</h2>
-          <a
-            href="#open-roles"
-            className="mt-1 inline-flex h-[40px] w-[108px] items-center justify-center rounded-sm bg-[#1f6f5f] text-sm"
-          >
-            View Jobs
-          </a>
-        </aside>
-
-        <div className="relative overflow-hidden">
-          <img
-            src="/img/next-fa25-team (1).jpeg"
-            alt="NExT team"
-            className="h-full w-full object-cover opacity-90"
+      <div className="relative overflow-hidden h-[600px]">
+        <img
+          src="/img/next-fa25-team (1).jpeg"
+          alt="NExT team"
+          className="h-full w-full object-cover opacity-90"
           />
-          <div className="absolute inset-0 bg-black/25" />
-        </div>
-      </section>
+        <div className="absolute inset-0 bg-black/25" />
+      </div>
+
+      <div className="absolute inset-0 flex items-center justify-center">
+        <h2 className="text-white text-[100px] font-bold p-4 top-1/2 transform -translate-y-1/2">
+          Open Roles
+        </h2>
+      </div>
 
       <section id="open-roles" className="mx-auto mt-3 max-w-[1140px] px-5 pb-8">
-        <h1 className="mb-8 text-center text-[54px] font-normal text-[#222]">Open Roles</h1>
-
         <ul className="list-none p-0">
           {jobs.map((job) => (
             <li key={`${job.jobId}-${job.role}`} className="border-b border-[#8e8e8e] py-6">

@@ -39,6 +39,8 @@ export function ProfilePage() {
         last_name: lastName,
         user_metadata: metadata,
       });
+      localStorage.setItem("auth_user_email", email);
+      localStorage.setItem("auth_user_name", `${firstName} ${lastName}`.trim() || email);
       setStatusMessage("Profile updated. Existing submissions remain unchanged snapshots.");
     } catch {
       setStatusMessage("Could not update profile. Ensure metadata is valid JSON.");

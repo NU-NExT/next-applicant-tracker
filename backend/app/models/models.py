@@ -71,7 +71,7 @@ class QuestionnaireQuestion(Base):
     __tablename__ = "questionnaire_questions"
 
     question_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    job_listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_listings.listing_id"), nullable=False)
+    job_listing_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("job_listings.listing_id"), nullable=True)
     prompt: Mapped[str] = mapped_column(String(512), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     question_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("question_types.question_type_id"), nullable=False)

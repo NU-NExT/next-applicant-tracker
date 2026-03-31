@@ -6,6 +6,9 @@ type StepReviewSubmitProps = {
   positionLabel: string;
   resumeViewUrl: string;
   profile: ProfileFormData;
+  globalQuestions: RepositoryQuestion[];
+  globalAnswers: Record<number, string>;
+  globalDropdownFallbacks: Record<number, string>;
   questions: RepositoryQuestion[];
   answers: Record<number, string>;
   dropdownFallbacks: Record<number, string>;
@@ -26,6 +29,9 @@ export function StepReviewSubmit({
   positionLabel,
   resumeViewUrl,
   profile,
+  globalQuestions,
+  globalAnswers,
+  globalDropdownFallbacks,
   questions,
   answers,
   dropdownFallbacks,
@@ -78,7 +84,7 @@ export function StepReviewSubmit({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold text-[#1f1f1f]">Step 4: Review & Submit</h2>
+      <h2 className="text-2xl font-semibold text-[#1f1f1f]">Step 5: Review & Submit</h2>
       <p className="text-sm text-[#4d4d4d]">Please review your information before submitting.</p>
 
       {/* Resume */}
@@ -116,6 +122,22 @@ export function StepReviewSubmit({
           <Row label="Unpaid Experiences" value={profile.unique_experience_count?.toString() ?? ""} />
         </div>
       </section>
+
+      {/* Global questions */}
+      {globalQuestions.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-lg font-semibold text-[#1f1f1f]">General Questions</h3>
+          <div className="divide-y divide-[#eee]">
+            {globalQuestions.map((q, i) => {
+              const raw = globalAnswers[i] ?? "";
+              const value = q.question_type === "dropdown" && raw === "__other__"
+                ? globalDropdownFallbacks[i] ?? ""
+                : raw;
+              return <Row key={i} label={q.prompt} value={value} />;
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Position questions */}
       {questions.length > 0 && (

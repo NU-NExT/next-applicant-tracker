@@ -1,6 +1,6 @@
 import type { RepositoryQuestion } from "../../api";
 
-type StepPositionQuestionsProps = {
+type StepGlobalQuestionsProps = {
   questions: RepositoryQuestion[];
   answers: Record<number, string>;
   dropdownFallbacks: Record<number, string>;
@@ -10,7 +10,7 @@ type StepPositionQuestionsProps = {
   onBack: () => void;
 };
 
-export function StepPositionQuestions({
+export function StepGlobalQuestions({
   questions,
   answers,
   dropdownFallbacks,
@@ -18,14 +18,14 @@ export function StepPositionQuestions({
   onFallbackChange,
   onNext,
   onBack,
-}: StepPositionQuestionsProps) {
+}: StepGlobalQuestionsProps) {
   return (
     <div className="space-y-5">
-      <h2 className="text-2xl font-semibold text-[#1f1f1f]">Step 4: Position Questions</h2>
-      <p className="text-sm text-[#4d4d4d]">Answer the following questions specific to this position.</p>
+      <h2 className="text-2xl font-semibold text-[#1f1f1f]">Step 3: General Questions</h2>
+      <p className="text-sm text-[#4d4d4d]">Answer the following general questions.</p>
 
       {questions.length === 0 && (
-        <p className="text-sm text-[#666]">No additional questions for this position.</p>
+        <p className="text-sm text-[#666]">No general questions for this application.</p>
       )}
 
       {questions.map((question, index) => (

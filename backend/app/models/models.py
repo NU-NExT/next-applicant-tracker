@@ -71,7 +71,7 @@ class QuestionnaireQuestion(Base):
     __tablename__ = "questionnaire_questions"
 
     question_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    job_listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_listings.listing_id"), nullable=False)
+    job_listing_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("job_listings.listing_id"), nullable=True)
     prompt: Mapped[str] = mapped_column(String(512), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     question_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("question_types.question_type_id"), nullable=False)
@@ -123,6 +123,8 @@ class Profile(Base):
     gpa: Mapped[str | None] = mapped_column(String(16), nullable=True)
     github_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    personal_website_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    college: Mapped[str | None] = mapped_column(String(128), nullable=True)
     club: Mapped[str | None] = mapped_column(String(255), nullable=True)
     past_experience_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     unique_experience_count: Mapped[int | None] = mapped_column(Integer, nullable=True)

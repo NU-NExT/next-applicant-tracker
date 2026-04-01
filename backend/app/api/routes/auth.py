@@ -55,6 +55,31 @@ class AuthDeactivateAdminRequest(BaseModel):
     email: str
 
 
+class DevLoginRequest(BaseModel):
+    email: str
+
+
+@router.post("/dev-login")
+def dev_login(payload: DevLoginRequest, db: Session = Depends(get_db)):
+    """Dev-only: returns a mock token for a seeded user. Disabled in production."""
+    if settings.environment != "development":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    email = payload.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No user with email {email}")
+    token = f"dev-token::{email}"
+    return {
+        "access_token": token,
+        "id_token": token,
+        "refresh_token": token,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "is_admin": user.is_admin,
+    }
+
+
 def _get_cognito_client():
     if not settings.cognito_user_pool_id or not settings.cognito_app_client_id:
         raise HTTPException(

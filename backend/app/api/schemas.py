@@ -225,6 +225,59 @@ class UserProfileUpdate(BaseModel):
     user_metadata: dict = Field(default_factory=dict)
 
 
+class ProfileFullRead(BaseModel):
+    # User fields
+    email: str
+    first_name: str
+    last_name: str
+    is_admin: bool
+    is_active: bool
+    consented_at: datetime | None = None
+    user_metadata: dict = Field(default_factory=dict)
+    # Profile fields
+    full_legal_name: str | None = None
+    phone_number: str | None = None
+    expected_graduation_date: str | None = None
+    current_year: str | None = None
+    coop_number: str | None = None
+    major: str | None = None
+    minor: str | None = None
+    concentration: str | None = None
+    college: str | None = None
+    gpa: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    personal_website_url: str | None = None
+    club: str | None = None
+    past_experience_count: int | None = None
+    unique_experience_count: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProfileFullUpdate(BaseModel):
+    # User fields
+    first_name: str | None = None
+    last_name: str | None = None
+    # Profile fields
+    full_legal_name: str | None = None
+    phone_number: str | None = None
+    expected_graduation_date: str | None = None
+    current_year: str | None = None
+    coop_number: str | None = None
+    major: str | None = None
+    minor: str | None = None
+    concentration: str | None = None
+    college: str | None = None
+    gpa: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    personal_website_url: str | None = None
+    club: str | None = None
+    past_experience_count: int | None = None
+    unique_experience_count: int | None = None
+
+
 class DemographicsSummary(BaseModel):
     total_submissions: int
     applicants_with_edu_email: int

@@ -126,3 +126,39 @@ variable "cognito_logout_urls" {
   description = "Allowed logout URLs for Cognito Hosted UI"
   default     = ["http://localhost:3000/login"]
 }
+
+variable "enable_route53" {
+  type        = bool
+  description = "Enable Route 53 DNS records for ALB frontend and API Gateway"
+  default     = false
+}
+
+variable "route53_create_zone" {
+  type        = bool
+  description = "Create the hosted zone when true; otherwise look up an existing public zone"
+  default     = false
+}
+
+variable "route53_zone_name" {
+  type        = string
+  description = "Public hosted zone name (for example: example.com)"
+  default     = ""
+}
+
+variable "route53_frontend_subdomain" {
+  type        = string
+  description = "Subdomain for frontend ALB alias. Leave empty to use the zone apex."
+  default     = ""
+}
+
+variable "route53_api_subdomain" {
+  type        = string
+  description = "Subdomain for API Gateway CNAME record"
+  default     = "api"
+}
+
+variable "route53_ttl" {
+  type        = number
+  description = "TTL for non-alias Route 53 records"
+  default     = 300
+}

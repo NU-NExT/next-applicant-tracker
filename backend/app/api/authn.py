@@ -19,13 +19,17 @@ def require_bearer_token(authorization: str | None) -> str:
 
 
 def cognito_client():
+    cognito_region = (settings.cognito_aws_region or settings.aws_region).strip()
+    cognito_access_key_id = (settings.cognito_aws_access_key_id or settings.aws_access_key_id).strip()
+    cognito_secret_access_key = (settings.cognito_aws_secret_access_key or settings.aws_secret_access_key).strip()
+    cognito_session_token = (settings.cognito_aws_session_token or settings.aws_session_token or "").strip()
     client_kwargs: dict[str, str] = {
-        "region_name": settings.aws_region,
-        "aws_access_key_id": settings.aws_access_key_id,
-        "aws_secret_access_key": settings.aws_secret_access_key,
+        "region_name": cognito_region,
+        "aws_access_key_id": cognito_access_key_id,
+        "aws_secret_access_key": cognito_secret_access_key,
     }
-    if settings.aws_session_token:
-        client_kwargs["aws_session_token"] = settings.aws_session_token
+    if cognito_session_token:
+        client_kwargs["aws_session_token"] = cognito_session_token
     return boto3.client(
         "cognito-idp",
         **client_kwargs,

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     cognito_app_client_id: str = ""
     cognito_app_client_secret: str = ""
     cognito_admin_group_name: str = "ADMIN"
+    cognito_aws_region: str | None = None
+    cognito_aws_access_key_id: str | None = None
+    cognito_aws_secret_access_key: str | None = None
+    cognito_aws_session_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

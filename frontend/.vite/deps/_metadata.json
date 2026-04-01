@@ -1,0 +1,79 @@
+{
+  "hash": "5dbf76eb",
+  "configHash": "49acd256",
+  "lockfileHash": "3510e704",
+  "browserHash": "acc6f6c8",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "d556d52d",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "5a3a4fc7",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "3a9e0f6b",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "cb19834b",
+      "needsInterop": false
+    },
+    "axios": {
+      "src": "../../node_modules/axios/index.js",
+      "file": "axios.js",
+      "fileHash": "85ff6715",
+      "needsInterop": false
+    },
+    "class-variance-authority": {
+      "src": "../../node_modules/class-variance-authority/dist/index.mjs",
+      "file": "class-variance-authority.js",
+      "fileHash": "9dbb9812",
+      "needsInterop": false
+    },
+    "framer-motion": {
+      "src": "../../node_modules/framer-motion/dist/es/index.mjs",
+      "file": "framer-motion.js",
+      "fileHash": "d37c359a",
+      "needsInterop": false
+    },
+    "vaul": {
+      "src": "../../node_modules/vaul/dist/index.mjs",
+      "file": "vaul.js",
+      "fileHash": "362c33d6",
+      "needsInterop": false
+    },
+    "radix-ui": {
+      "src": "../../node_modules/radix-ui/dist/index.mjs",
+      "file": "radix-ui.js",
+      "fileHash": "6c7fdb6d",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-DBYC74R4": {
+      "file": "chunk-DBYC74R4.js"
+    },
+    "chunk-MABXFIY3": {
+      "file": "chunk-MABXFIY3.js"
+    },
+    "chunk-PYE7TAV6": {
+      "file": "chunk-PYE7TAV6.js"
+    },
+    "chunk-D3Q7YXS4": {
+      "file": "chunk-D3Q7YXS4.js"
+    },
+    "chunk-M2PPBBZ4": {
+      "file": "chunk-M2PPBBZ4.js"
+    }
+  }
+}

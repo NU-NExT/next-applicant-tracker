@@ -41,3 +41,15 @@ output "s3_bucket_transcripts" {
 output "s3_bucket_files" {
   value = aws_s3_bucket.files.bucket
 }
+
+output "route53_zone_id" {
+  value = var.enable_route53 ? local.route53_zone_id : null
+}
+
+output "route53_frontend_fqdn" {
+  value = var.enable_route53 ? local.route53_frontend_record_name : null
+}
+
+output "route53_api_fqdn" {
+  value = var.enable_route53 ? local.route53_api_record_name : null
+}

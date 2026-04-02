@@ -42,7 +42,9 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   verification_message_template {
-    default_email_option = "CONFIRM_WITH_CODE"
+    # Send email verification as a clickable link instead of a one-time code.
+    # A Custom Message Lambda can use ClientMetadata.return_to to build per-job redirects.
+    default_email_option = "CONFIRM_WITH_LINK"
   }
 
   tags = local.common_tags

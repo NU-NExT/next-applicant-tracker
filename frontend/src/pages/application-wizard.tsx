@@ -17,6 +17,7 @@ import {
   profileFullToProfileForm,
   type ProfileFormData,
 } from "../components/profile/profileFormModel";
+import { StepGlobalQuestions } from "../components/wizard/StepGlobalQuestions";
 import { StepPositionQuestions } from "../components/wizard/StepPositionQuestions";
 import { StepProfileFields } from "../components/wizard/StepProfileFields";
 import { StepResumeUpload } from "../components/wizard/StepResumeUpload";
@@ -92,14 +93,14 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
   // Profile state (step 2)
   const [profileData, setProfileData] = useState<ProfileFormData>(EMPTY_PROFILE_FORM);
-  const [globalAnswerContext, setGlobalAnswerContext] = useState<GlobalAnswerContext>({
-    coopNumber: "",
-    college: "",
-  });
 
-  // Position questions (step 3) — non-global only
+  // Global questions (step 3) — is_global === true
+  const [globalQuestions, setGlobalQuestions] = useState<RepositoryQuestion[]>([]);
+  const [globalAnswers, setGlobalAnswers] = useState<Record<number, string>>({});
+  const [globalDropdownFallbacks, setGlobalDropdownFallbacks] = useState<Record<number, string>>({});
+
+  // Position questions (step 4) — non-global only
   const [positionQuestions, setPositionQuestions] = useState<RepositoryQuestion[]>([]);
-  const [allQuestions, setAllQuestions] = useState<RepositoryQuestion[]>([]);
   const [positionAnswers, setPositionAnswers] = useState<Record<number, string>>({});
   const [dropdownFallbacks, setDropdownFallbacks] = useState<Record<number, string>>({});
 
@@ -135,13 +136,21 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           jobListingPromise,
         ]);
 
-        setProfileData(profileFullToProfileForm(profile));
-        setGlobalAnswerContext({
+        const profileForm = profileFullToProfileForm(profile);
+        const globalContext: GlobalAnswerContext = {
           coopNumber: profile.coop_number ?? "",
           college: profile.college ?? "",
-        });
+        };
+        setProfileData(profileForm);
 
-        setAllQuestions(questions);
+        const globals = questions.filter((q) => q.is_global);
+        setGlobalQuestions(globals);
+        // Pre-fill global answers from profile where possible.
+        const prefilled: Record<number, string> = {};
+        globals.forEach((q, i) => {
+          prefilled[i] = resolveGlobalAnswer(q.prompt, profileForm, globalContext);
+        });
+        setGlobalAnswers(prefilled);
         setPositionQuestions(questions.filter((q) => !q.is_global));
 
         // Resolve the job listing ID for submission
@@ -203,15 +212,20 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
   }
 
   const handleSubmit = async () => {
-    // Build responses_json: global answers from profile + position answers
-    const globalResponses = allQuestions
-      .filter((q) => q.is_global)
-      .map((q) => ({
+    // Build responses_json: global answers from step 3 + position answers from step 4
+    const globalResponses = globalQuestions.map((q, i) => {
+      const raw = globalAnswers[i] ?? "";
+      const answer =
+        q.question_type === "dropdown" && raw === "__other__"
+          ? globalDropdownFallbacks[i] ?? ""
+          : raw;
+      return {
         question: q.prompt,
         question_type: q.question_type ?? "free_text",
         is_global: true,
-        answer: resolveGlobalAnswer(q.prompt, profileData, globalAnswerContext),
-      }));
+        answer,
+      };
+    });
 
     const positionResponses = positionQuestions.map((q, i) => {
       const raw = positionAnswers[i] ?? "";
@@ -282,27 +296,42 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           )}
 
           {step === 2 && (
-            <StepPositionQuestions
-              questions={positionQuestions}
-              answers={positionAnswers}
-              dropdownFallbacks={dropdownFallbacks}
-              onAnswerChange={(i, v) => setPositionAnswers((prev) => ({ ...prev, [i]: v }))}
-              onFallbackChange={(i, v) => setDropdownFallbacks((prev) => ({ ...prev, [i]: v }))}
+            <StepGlobalQuestions
+              questions={globalQuestions}
+              answers={globalAnswers}
+              dropdownFallbacks={globalDropdownFallbacks}
+              onAnswerChange={(i, v) => setGlobalAnswers((prev) => ({ ...prev, [i]: v }))}
+              onFallbackChange={(i, v) => setGlobalDropdownFallbacks((prev) => ({ ...prev, [i]: v }))}
               onNext={() => setStep(3)}
               onBack={() => setStep(1)}
             />
           )}
 
           {step === 3 && (
+            <StepPositionQuestions
+              questions={positionQuestions}
+              answers={positionAnswers}
+              dropdownFallbacks={dropdownFallbacks}
+              onAnswerChange={(i, v) => setPositionAnswers((prev) => ({ ...prev, [i]: v }))}
+              onFallbackChange={(i, v) => setDropdownFallbacks((prev) => ({ ...prev, [i]: v }))}
+              onNext={() => setStep(4)}
+              onBack={() => setStep(2)}
+            />
+          )}
+
+          {step === 4 && (
             <StepReviewSubmit
               positionLabel={identifier}
               resumeViewUrl={resumeViewUrl}
               profile={profileData}
+              globalQuestions={globalQuestions}
+              globalAnswers={globalAnswers}
+              globalDropdownFallbacks={globalDropdownFallbacks}
               questions={positionQuestions}
               answers={positionAnswers}
               dropdownFallbacks={dropdownFallbacks}
               onSubmit={handleSubmit}
-              onBack={() => setStep(2)}
+              onBack={() => setStep(3)}
             />
           )}
         </section>

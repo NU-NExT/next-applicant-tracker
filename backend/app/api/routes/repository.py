@@ -25,10 +25,17 @@ def _serialize_question(question: QuestionnaireQuestion) -> dict:
 
 @router.get("/{job_listing_id}/questions", response_model=list[dict])
 def get_questions_for_listing(job_listing_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    from sqlalchemy import or_
+
     questions = (
         db.query(QuestionnaireQuestion)
-        .filter(QuestionnaireQuestion.job_listing_id == job_listing_id)
-        .order_by(QuestionnaireQuestion.sort_order.asc(), QuestionnaireQuestion.question_id.asc())
+        .filter(
+            or_(
+                QuestionnaireQuestion.job_listing_id == job_listing_id,
+                QuestionnaireQuestion.is_global.is_(True),
+            )
+        )
+        .order_by(QuestionnaireQuestion.is_global.desc(), QuestionnaireQuestion.sort_order.asc(), QuestionnaireQuestion.question_id.asc())
         .all()
     )
     if not questions:

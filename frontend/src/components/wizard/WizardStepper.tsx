@@ -1,4 +1,4 @@
-const STEPS = ["Resume", "Profile", "Questions", "Review"] as const;
+const STEPS = ["Resume", "Profile", "General Questions", "Position Questions", "Review"] as const;
 
 type WizardStepperProps = {
   currentStep: number;

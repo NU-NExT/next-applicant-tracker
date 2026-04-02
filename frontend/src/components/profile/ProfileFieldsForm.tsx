@@ -17,6 +17,7 @@ type ProfileFieldsFormProps = {
 
 export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   const clubInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const linkInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const fullLegalFromParts = (firstName: string, lastName: string) => `${firstName} ${lastName}`.trim();
   const [majorInputFocused, setMajorInputFocused] = useState(false);
   const [graduationYear, setGraduationYear] = useState("");
@@ -93,6 +94,31 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   const removeClub = (index: number) => {
     onChange({
       clubs: data.clubs.filter((_, clubIndex) => clubIndex !== index),
+    });
+  };
+
+  const updateLink = (index: number, value: string) => {
+    onChange({
+      userLinks: data.userLinks.map((link, linkIndex) => (linkIndex === index ? value : link)),
+    });
+  };
+
+  const addLink = () => {
+    onChange({ userLinks: [...data.userLinks, ""] });
+  };
+
+  const insertLinkAfter = (index: number) => {
+    onChange({
+      userLinks: [...data.userLinks.slice(0, index + 1), "", ...data.userLinks.slice(index + 1)],
+    });
+    requestAnimationFrame(() => {
+      linkInputRefs.current[index + 1]?.focus();
+    });
+  };
+
+  const removeLink = (index: number) => {
+    onChange({
+      userLinks: data.userLinks.filter((_, linkIndex) => linkIndex !== index),
     });
   };
 
@@ -334,64 +360,105 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
         </div>
       </div>
 
-      <div className="max-w-3xl text-sm">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-          <div>
-            <p className="font-medium text-[#1f1f1f]">Clubs and extracurricular activities</p>
-            <p className="text-xs text-[#666]">Add one club per row.</p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="max-w-md text-sm">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div>
+              <p className="font-medium text-[#1f1f1f]">Clubs and extracurricular activities</p>
+              <p className="text-xs text-[#666]">Add one club per row.</p>
+            </div>
+            <button
+              type="button"
+              onClick={addClub}
+              className="rounded border border-[#b8b8b8] px-3 py-1.5 text-xs text-[#1f1f1f]"
+            >
+              Add club
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={addClub}
-            className="rounded border border-[#b8b8b8] px-3 py-1.5 text-xs text-[#1f1f1f]"
-          >
-            Add club
-          </button>
+
+          <div className="mt-3 space-y-2">
+            {data.clubs.length === 0 ? (
+              <p className="rounded border border-dashed border-[#d0d0d0] px-3 py-3 text-sm text-[#666]">No clubs added yet.</p>
+            ) : null}
+
+            {data.clubs.map((club, index) => (
+              <div key={`club-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  ref={(element) => {
+                    clubInputRefs.current[index] = element;
+                  }}
+                  value={club}
+                  onChange={(e) => updateClub(index, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      insertClubAfter(index);
+                    }
+                  }}
+                  className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  placeholder="Club or extracurricular"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeClub(index)}
+                  className="rounded border border-[#b8b8b8] px-3 py-2 text-xs text-[#7a1d1d]"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-3 space-y-2">
-          {data.clubs.length === 0 ? (
-            <p className="rounded border border-dashed border-[#d0d0d0] px-3 py-3 text-sm text-[#666]">No clubs added yet.</p>
-          ) : null}
-
-          {data.clubs.map((club, index) => (
-            <div key={`club-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <input
-                ref={(element) => {
-                  clubInputRefs.current[index] = element;
-                }}
-                value={club}
-                onChange={(e) => updateClub(index, e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    insertClubAfter(index);
-                  }
-                }}
-                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
-                placeholder="Club or extracurricular"
-              />
-              <button
-                type="button"
-                onClick={() => removeClub(index)}
-                className="rounded border border-[#b8b8b8] px-3 py-2 text-xs text-[#7a1d1d]"
-              >
-                Remove
-              </button>
+        <div className="max-w-md text-sm">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div>
+              <p className="font-medium text-[#1f1f1f]">Extra links</p>
+              <p className="text-xs text-[#666]">Add one link per row.</p>
             </div>
-          ))}
+            <button
+              type="button"
+              onClick={addLink}
+              className="rounded border border-[#b8b8b8] px-3 py-1.5 text-xs text-[#1f1f1f]"
+            >
+              Add link
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {data.userLinks.length === 0 ? (
+              <p className="rounded border border-dashed border-[#d0d0d0] px-3 py-3 text-sm text-[#666]">No links added yet.</p>
+            ) : null}
+
+            {data.userLinks.map((link, index) => (
+              <div key={`link-${index}`} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  ref={(element) => {
+                    linkInputRefs.current[index] = element;
+                  }}
+                  value={link}
+                  onChange={(e) => updateLink(index, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      insertLinkAfter(index);
+                    }
+                  }}
+                  className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                  placeholder="https://example.com"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeLink(index)}
+                  className="rounded border border-[#b8b8b8] px-3 py-2 text-xs text-[#7a1d1d]"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <label className="block max-w-3xl text-sm">
-        <p className="font-medium text-[#1f1f1f]">Additional information</p>
-        <textarea
-          value={data.otherRelevantInformation}
-          onChange={(e) => onChange({ otherRelevantInformation: e.target.value })}
-          className="mt-1 h-28 w-full rounded border border-[#d0d0d0] px-3 py-2 [font-family:inherit]"
-          placeholder="Anything else you'd like reviewers to know (e.g. portfolio, personal website, notable distinctions)"
-        />
-      </label>
     </>
   );
 }

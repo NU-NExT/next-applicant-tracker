@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { RepositoryQuestion } from "../../api";
-import { joinClubList, type ProfileFormData } from "../profile/profileFormModel";
+import { joinClubList, joinLinkList, type ProfileFormData } from "../profile/profileFormModel";
 
 type StepReviewSubmitProps = {
   positionLabel: string;
@@ -116,9 +116,9 @@ export function StepReviewSubmit({
           <Row label="GitHub" value={profile.githubUrl} />
           <Row label="LinkedIn" value={profile.linkedinUrl} />
           <Row label="Clubs / Extracurriculars" value={joinClubList(profile.clubs)} />
+          <Row label="Extra Links" value={joinLinkList(profile.userLinks)} />
           <Row label="Paid Experiences" value={profile.paidExperienceCount} />
           <Row label="Unpaid Experiences" value={profile.unpaidExperienceCount} />
-          <Row label="Additional Information" value={profile.otherRelevantInformation} />
         </div>
       </section>
 

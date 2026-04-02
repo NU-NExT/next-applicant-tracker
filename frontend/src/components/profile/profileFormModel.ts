@@ -16,6 +16,7 @@ export type ProfileFormData = {
   githubUrl: string;
   linkedinUrl: string;
   clubs: string[];
+  userLinks: string[];
   paidExperienceCount: string;
   unpaidExperienceCount: string;
   otherRelevantInformation: string;
@@ -37,6 +38,7 @@ export const EMPTY_PROFILE_FORM: ProfileFormData = {
   githubUrl: "",
   linkedinUrl: "",
   clubs: [],
+  userLinks: [],
   paidExperienceCount: "0",
   unpaidExperienceCount: "0",
   otherRelevantInformation: "",
@@ -205,6 +207,31 @@ export function joinClubList(clubs: string[]): string {
     .join(", ");
 }
 
+export function parseLinkList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+export function joinLinkList(links: string[]): string {
+  return links
+    .map((link) => link.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function parseOptionalNumber(value: string, fieldLabel: string, allowFloat = false): number | null {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -301,6 +328,12 @@ export function profileFullToProfileForm(profile: ProfileFull): ProfileFormData 
       : parseClubList(candidateProfile.clubs).length > 0
         ? parseClubList(candidateProfile.clubs)
         : parseClubList(globalProfile["Clubs and extracurricular activities (list)"]);
+  const userLinks =
+    parseLinkList(profile.personal_website_url).length > 0
+      ? parseLinkList(profile.personal_website_url)
+      : parseLinkList(candidateProfile.personal_website_url).length > 0
+        ? parseLinkList(candidateProfile.personal_website_url)
+        : parseLinkList(globalProfile["Personal website URL (optional)"]);
 
   return {
     firstName,
@@ -344,6 +377,7 @@ export function profileFullToProfileForm(profile: ProfileFull): ProfileFormData 
       globalProfile["LinkedIn URL (optional)"],
     ),
     clubs,
+    userLinks,
     paidExperienceCount:
       readStringWithFallback(
         profile.past_experience_count,
@@ -381,6 +415,7 @@ export function profileFormToUpdatePayload(form: ProfileFormData): {
   const githubUrl = form.githubUrl.trim();
   const linkedinUrl = form.linkedinUrl.trim();
   const clubs = form.clubs.map((club) => club.trim()).filter(Boolean);
+  const userLinks = form.userLinks.map((link) => link.trim()).filter(Boolean);
   const paidExperienceCount = parseOptionalNumber(form.paidExperienceCount, "Paid experience count");
   const unpaidExperienceCount = parseOptionalNumber(form.unpaidExperienceCount, "Unpaid experience count");
   const gpa = parseOptionalNumber(form.gpa, "GPA", true);
@@ -404,6 +439,7 @@ export function profileFormToUpdatePayload(form: ProfileFormData): {
       gpa: form.gpa.trim(),
       github_url: githubUrl,
       linkedin_url: linkedinUrl,
+      personal_website_url: userLinks.length > 0 ? joinLinkList(userLinks) : "",
       club: clubs.length > 0 ? joinClubList(clubs) : "",
       past_experience_count: paidExperienceCount ?? undefined,
       unique_experience_count: unpaidExperienceCount ?? undefined,

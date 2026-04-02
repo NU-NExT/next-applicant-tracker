@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/repository-requests", tags=["repository-requests
 GLOBAL_FIELD_PROMPTS = {
     "full legal name",
     "preferred name (optional)",
+    "pronouns",
     "northeastern email",
     "expected graduation date",
     "current year / grade level",
@@ -28,6 +29,7 @@ GLOBAL_FIELD_PROMPTS = {
     "clubs and extracurricular activities (list)",
     "count of paid work experiences since high school graduation",
     "count of unpaid/volunteer experiences since high school graduation",
+    "any other information that would be relevant",
     "resume upload (pdf or docx, max 10mb)",
 }
 
@@ -145,9 +147,10 @@ def create_repository_request(
     profile_data = {}
     if profile is not None:
         for f in [
-            "full_legal_name", "phone_number", "expected_graduation_date", "current_year",
+            "full_legal_name", "phone_number", "pronouns", "expected_graduation_date", "current_year",
             "coop_number", "major", "minor", "concentration", "college", "gpa",
-            "github_url", "linkedin_url", "club", "past_experience_count", "unique_experience_count",
+            "github_url", "linkedin_url", "club", "other_relevant_information",
+            "past_experience_count", "unique_experience_count",
         ]:
             profile_data[f] = getattr(profile, f, None)
 

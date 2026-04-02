@@ -229,35 +229,7 @@ export function Header() {
         </div>
       </nav>
 
-      <div
-        aria-label="Navigation menu"
-        className={`absolute left-0 w-full overflow-y-auto border-t-2 border-emerald-700 bg-black/95 transition-all duration-300 ease-out ${
-          open ? "translate-y-0 opacity-100 visible" : "-translate-y-6 opacity-0 invisible"
-        }`}
-        style={{ top: `${headerHeight}px`, maxHeight: `calc(100vh - ${headerHeight}px)` }}
-      >
-        <div className="mx-auto grid max-w-[1200px] gap-6 px-6 py-6 md:grid-cols-3 lg:grid-cols-5">
-          {sections.map((section) => (
-            <div key={section.title} className="flex flex-col">
-              <a href={section.links[0]?.href ?? "#"} className="mb-3 border-b border-white/30 pb-2 text-lg font-semibold">
-                {section.title}
-              </a>
-              <div className="flex flex-col gap-2">
-                {section.links.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    className="rounded-none px-3 py-1.5 text-sm text-white/90 transition hover:bg-white/10"
-                    onClick={() => setOpen(false)}
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      
     </header>
   );
 }

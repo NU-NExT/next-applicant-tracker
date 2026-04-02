@@ -11,10 +11,10 @@ from app.models.models import Profile
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
 PROFILE_FIELDS = [
-    "full_legal_name", "phone_number", "expected_graduation_date", "current_year",
+    "full_legal_name", "phone_number", "pronouns", "expected_graduation_date", "current_year",
     "coop_number", "major", "minor", "concentration", "college", "gpa",
     "github_url", "linkedin_url", "personal_website_url", "club",
-    "past_experience_count", "unique_experience_count",
+    "other_relevant_information", "past_experience_count", "unique_experience_count",
 ]
 
 

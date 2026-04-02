@@ -1,6 +1,8 @@
 import type { ProfileFull, ProfileFullUpdatePayload } from "../../api";
 
 export type ProfileFormData = {
+  firstName: string;
+  lastName: string;
   fullLegalName: string;
   preferredName: string;
   pronouns: string;
@@ -20,6 +22,8 @@ export type ProfileFormData = {
 };
 
 export const EMPTY_PROFILE_FORM: ProfileFormData = {
+  firstName: "",
+  lastName: "",
   fullLegalName: "",
   preferredName: "",
   pronouns: "",
@@ -46,6 +50,14 @@ export const CURRENT_YEAR_OPTIONS = [
   "5th Year+",
   "Graduate Student",
 ] as const;
+
+export const GRADUATION_SEMESTER_OPTIONS = ["Fall", "Spring", "Summer 1", "Summer 2"] as const;
+
+export const GRADUATION_YEAR_OPTIONS: string[] = (() => {
+  const start = new Date().getFullYear();
+  const span = 12;
+  return Array.from({ length: span }, (_, i) => String(start + i));
+})();
 
 function readString(value: unknown): string {
   if (typeof value === "string") {
@@ -111,10 +123,82 @@ export function parseOptionalNumber(value: string, fieldLabel: string, allowFloa
   return parsed;
 }
 
+function monthToSemester(month: number): string {
+  if (month >= 1 && month <= 4) return "Spring";
+  if (month >= 5 && month <= 6) return "Summer 1";
+  if (month >= 7 && month <= 8) return "Summer 2";
+  return "Fall";
+}
+
+function normalizeSemester(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "fall") return "Fall";
+  if (normalized === "spring") return "Spring";
+  if (normalized === "summer 1" || normalized === "summer1") return "Summer 1";
+  if (normalized === "summer 2" || normalized === "summer2") return "Summer 2";
+  return "";
+}
+
+export function splitExpectedGraduationDate(value: string): { year: string; semester: string } {
+  const raw = value.trim();
+  if (!raw) return { year: "", semester: "" };
+
+  const yearFirst = raw.match(/^(\d{4})\s+(.+)$/);
+  if (yearFirst) {
+    const semester = normalizeSemester(yearFirst[2]);
+    if (semester) return { year: yearFirst[1], semester };
+  }
+
+  const semesterFirst = raw.match(/^(.+)\s+(\d{4})$/);
+  if (semesterFirst) {
+    const semester = normalizeSemester(semesterFirst[1]);
+    if (semester) return { year: semesterFirst[2], semester };
+  }
+
+  const monthNameMatch = raw.match(
+    /^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{4})$/i,
+  );
+  if (monthNameMatch) {
+    const monthText = monthNameMatch[1].toLowerCase().slice(0, 3);
+    const monthOrder = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const month = monthOrder.indexOf(monthText) + 1;
+    if (month > 0) return { year: monthNameMatch[2], semester: monthToSemester(month) };
+  }
+
+  const isoDate = raw.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (isoDate) {
+    const month = Number.parseInt(isoDate[2], 10);
+    if (month >= 1 && month <= 12) return { year: isoDate[1], semester: monthToSemester(month) };
+  }
+
+  const slashDate = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (slashDate) {
+    const month = Number.parseInt(slashDate[1], 10);
+    if (month >= 1 && month <= 12) return { year: slashDate[2], semester: monthToSemester(month) };
+  }
+
+  return { year: "", semester: "" };
+}
+
+export function joinExpectedGraduationDate(year: string, semester: string): string {
+  const nextYear = year.trim();
+  const nextSemester = normalizeSemester(semester);
+  if (!nextYear || !nextSemester) return "";
+  return `${nextYear} ${nextSemester}`;
+}
+
 export function profileFullToProfileForm(profile: ProfileFull): ProfileFormData {
   const metadata = asRecord(profile.user_metadata);
   const candidateProfile = asRecord(metadata.candidate_profile);
   const globalProfile = asRecord(metadata.global_profile);
+  const firstName = readString(profile.first_name).trim();
+  const lastName = readString(profile.last_name).trim();
+  const fullLegalName = readStringWithFallback(
+    profile.full_legal_name,
+    candidateProfile.full_legal_name,
+    globalProfile["Full legal name"],
+  );
+  const derivedFullLegalName = fullLegalName || [firstName, lastName].filter(Boolean).join(" ");
 
   const clubs =
     parseClubList(profile.club).length > 0
@@ -124,12 +208,10 @@ export function profileFullToProfileForm(profile: ProfileFull): ProfileFormData 
         : parseClubList(globalProfile["Clubs and extracurricular activities (list)"]);
 
   return {
-    fullLegalName: readStringWithFallback(
-      profile.full_legal_name,
-      candidateProfile.full_legal_name,
-      globalProfile["Full legal name"],
-    ),
-    preferredName: readStringWithFallback(profile.first_name, candidateProfile.preferred_name),
+    firstName,
+    lastName,
+    fullLegalName: derivedFullLegalName,
+    preferredName: readStringWithFallback(candidateProfile.preferred_name, profile.first_name),
     pronouns: readStringWithFallback(profile.pronouns, candidateProfile.pronouns, globalProfile.Pronouns),
     email: readString(profile.email),
     expectedGraduationDate: readStringWithFallback(
@@ -189,7 +271,9 @@ export function profileFormToUpdatePayload(form: ProfileFormData): {
   payload: ProfileFullUpdatePayload;
   clubs: string[];
 } {
-  const fullLegalName = form.fullLegalName.trim();
+  const firstName = form.firstName.trim();
+  const lastName = form.lastName.trim();
+  const fullLegalName = form.fullLegalName.trim() || `${firstName} ${lastName}`.trim();
   const preferredName = form.preferredName.trim();
   const pronouns = form.pronouns.trim();
   const expectedGraduationDate = form.expectedGraduationDate.trim();
@@ -205,13 +289,14 @@ export function profileFormToUpdatePayload(form: ProfileFormData): {
   const gpa = parseOptionalNumber(form.gpa, "GPA", true);
   const otherRelevantInformation = form.otherRelevantInformation.trim();
 
-  if (!fullLegalName || !expectedGraduationDate || !currentYear || !major || gpa === null || paidExperienceCount === null || unpaidExperienceCount === null) {
+  if (!firstName || !lastName || !fullLegalName || !expectedGraduationDate || !currentYear || !major || gpa === null || paidExperienceCount === null || unpaidExperienceCount === null) {
     throw new Error("Fill in all required fields before saving.");
   }
 
   return {
     payload: {
-      first_name: preferredName || undefined,
+      first_name: firstName,
+      last_name: lastName,
       full_legal_name: fullLegalName,
       pronouns,
       expected_graduation_date: expectedGraduationDate,

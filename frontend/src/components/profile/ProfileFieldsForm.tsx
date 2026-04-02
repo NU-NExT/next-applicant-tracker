@@ -1,6 +1,13 @@
 import { useRef } from "react";
 
-import { CURRENT_YEAR_OPTIONS, type ProfileFormData } from "./profileFormModel";
+import {
+  CURRENT_YEAR_OPTIONS,
+  GRADUATION_SEMESTER_OPTIONS,
+  GRADUATION_YEAR_OPTIONS,
+  joinExpectedGraduationDate,
+  splitExpectedGraduationDate,
+  type ProfileFormData,
+} from "./profileFormModel";
 
 type ProfileFieldsFormProps = {
   data: ProfileFormData;
@@ -9,6 +16,26 @@ type ProfileFieldsFormProps = {
 
 export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   const clubInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const fullLegalFromParts = (firstName: string, lastName: string) => `${firstName} ${lastName}`.trim();
+  const graduation = splitExpectedGraduationDate(data.expectedGraduationDate);
+
+  const updateFirstName = (firstName: string) => {
+    onChange({
+      firstName,
+      fullLegalName: fullLegalFromParts(firstName, data.lastName),
+    });
+  };
+
+  const updateLastName = (lastName: string) => {
+    onChange({
+      lastName,
+      fullLegalName: fullLegalFromParts(data.firstName, lastName),
+    });
+  };
+
+  const updateGraduation = (year: string, semester: string) => {
+    onChange({ expectedGraduationDate: joinExpectedGraduationDate(year, semester) });
+  };
 
   const updateClub = (index: number, value: string) => {
     onChange({
@@ -41,10 +68,20 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
         <h2 className="border-b border-[#d8d8d8] pb-2 text-lg font-semibold text-[#1f1f1f]">About Me</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block max-w-md text-sm">
-            Full legal name *
+            First name *
             <input
-              value={data.fullLegalName}
-              onChange={(e) => onChange({ fullLegalName: e.target.value })}
+              value={data.firstName}
+              onChange={(e) => updateFirstName(e.target.value)}
+              className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
+              required
+            />
+          </label>
+
+          <label className="block max-w-md text-sm">
+            Last name *
+            <input
+              value={data.lastName}
+              onChange={(e) => updateLastName(e.target.value)}
               className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
               required
             />
@@ -68,15 +105,6 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
               placeholder="e.g. she/her"
             />
           </label>
-
-          <label className="block max-w-md text-sm">
-            Northeastern email
-            <input
-              value={data.email}
-              disabled
-              className="mt-1 w-full rounded border border-[#d0d0d0] bg-[#f4f4f4] px-3 py-2"
-            />
-          </label>
         </div>
       </div>
 
@@ -85,13 +113,35 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block max-w-md text-sm">
             Expected graduation date *
-            <input
-              value={data.expectedGraduationDate}
-              onChange={(e) => onChange({ expectedGraduationDate: e.target.value })}
-              className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-              placeholder="May 2026"
-              required
-            />
+            <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <select
+                value={graduation.year}
+                onChange={(e) => updateGraduation(e.target.value, graduation.semester)}
+                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                required
+              >
+                <option value="">Select year</option>
+                {GRADUATION_YEAR_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={graduation.semester}
+                onChange={(e) => updateGraduation(graduation.year, e.target.value)}
+                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                required
+              >
+                <option value="">Select semester</option>
+                {GRADUATION_SEMESTER_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
           </label>
 
           <label className="block max-w-md text-sm">

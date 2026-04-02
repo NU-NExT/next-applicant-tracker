@@ -293,7 +293,15 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
           </label>
 
           <label className="block max-w-md text-sm">
-            Unpaid co-op/internship count *
+            <span className="flex items-center gap-2">
+              <span>Unpaid co-op/internship count *</span>
+              <span className="group relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#b8b8b8] text-[10px] text-[#555]">
+                ?
+                <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-56 -translate-x-1/2 rounded border border-[#d0d0d0] bg-white px-2 py-1 text-xs text-[#333] shadow-sm group-hover:block">
+                  Unpaid co-ops/interships you have completed related to your major
+                </span>
+              </span>
+            </span>
             <input
               type="number"
               min="0"

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   CURRENT_YEAR_OPTIONS,
@@ -17,7 +17,26 @@ type ProfileFieldsFormProps = {
 export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   const clubInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const fullLegalFromParts = (firstName: string, lastName: string) => `${firstName} ${lastName}`.trim();
-  const graduation = splitExpectedGraduationDate(data.expectedGraduationDate);
+  const [graduationYear, setGraduationYear] = useState("");
+  const [graduationSemester, setGraduationSemester] = useState("");
+
+  useEffect(() => {
+    const parsed = splitExpectedGraduationDate(data.expectedGraduationDate);
+    const hasCompleteIncomingValue = Boolean(parsed.year && parsed.semester);
+    const incomingIsBlank = !parsed.year && !parsed.semester;
+    const localIsBlank = !graduationYear && !graduationSemester;
+
+    if (!hasCompleteIncomingValue && !(incomingIsBlank && localIsBlank)) {
+      return;
+    }
+
+    if (parsed.year !== graduationYear) {
+      setGraduationYear(parsed.year);
+    }
+    if (parsed.semester !== graduationSemester) {
+      setGraduationSemester(parsed.semester);
+    }
+  }, [data.expectedGraduationDate, graduationYear, graduationSemester]);
 
   const updateFirstName = (firstName: string) => {
     onChange({
@@ -34,6 +53,14 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   };
 
   const updateGraduation = (year: string, semester: string) => {
+    setGraduationYear(year);
+    setGraduationSemester(semester);
+
+    if (!year || !semester) {
+      onChange({ expectedGraduationDate: "" });
+      return;
+    }
+
     onChange({ expectedGraduationDate: joinExpectedGraduationDate(year, semester) });
   };
 
@@ -113,11 +140,11 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block max-w-md text-sm">
             Expected graduation date *
-            <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="mt-1 flex flex-wrap gap-2">
               <select
-                value={graduation.year}
-                onChange={(e) => updateGraduation(e.target.value, graduation.semester)}
-                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                value={graduationYear}
+                onChange={(e) => updateGraduation(e.target.value, graduationSemester)}
+                className="w-[8.5rem] rounded border border-[#d0d0d0] px-2 py-1.5 text-sm"
                 required
               >
                 <option value="">Select year</option>
@@ -129,9 +156,9 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
               </select>
 
               <select
-                value={graduation.semester}
-                onChange={(e) => updateGraduation(graduation.year, e.target.value)}
-                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                value={graduationSemester}
+                onChange={(e) => updateGraduation(graduationYear, e.target.value)}
+                className="w-[9.5rem] rounded border border-[#d0d0d0] px-2 py-1.5 text-sm"
                 required
               >
                 <option value="">Select semester</option>

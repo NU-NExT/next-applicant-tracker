@@ -42,8 +42,9 @@ export function JobBoardPage() {
   }, [apiJobs]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex flex-col flex-1 bg-white">
       <Header />
+      <main className="flex-1">
       <div className="relative overflow-hidden h-[600px]">
         <img
           src="/img/next-fa25-team (1).jpeg"
@@ -81,6 +82,7 @@ export function JobBoardPage() {
           ))}
         </ul>
       </section>
+      </main>
     </div>
   );
 }

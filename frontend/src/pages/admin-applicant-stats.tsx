@@ -35,9 +35,9 @@ export function AdminApplicantStatsPage() {
   const disability = extract("disability");
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <div className="flex flex-col flex-1 bg-[#ececec]">
       <Header />
-      <main className="mx-auto max-w-[1100px] px-4 pt-24">
+      <main className="flex-1 mx-auto max-w-[1100px] px-4 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-[#d8d8d8] p-5">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">Applicant Stats</h1>
           <div className="mt-6 grid gap-4 md:grid-cols-3">

@@ -134,9 +134,9 @@ export function AdminEditJobPostPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <div className="flex flex-col flex-1 bg-[#ececec]">
       <Header />
-      <main className="mx-auto max-w-[1200px] px-4 pt-24">
+      <main className="flex-1 mx-auto max-w-[1200px] px-4 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-[#d8d8d8] p-5">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">Edit Job Post</h1>
           <p className="mt-2 text-[#2d2d2d]">Open/future roles from Postgres:</p>

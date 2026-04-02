@@ -99,10 +99,10 @@ export function RepositoryRequestPage({ jobId }: RepositoryRequestPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#efefef]">
+    <div className="flex flex-col flex-1 bg-[#efefef]">
       <Header />
 
-      <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+      <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
         <section className="rounded-md border border-[#c7c7c7] bg-white p-6">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">Repository Request: Position {jobId}</h1>
           <p className="mt-2 text-base text-[#4d4d4d]">Complete all questions to submit your application.</p>

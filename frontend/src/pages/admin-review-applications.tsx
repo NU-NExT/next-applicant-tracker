@@ -133,9 +133,9 @@ export function AdminReviewApplicationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <div className="flex flex-col flex-1 bg-[#ececec]">
       <Header />
-      <main className="px-4 pt-24 pb-6">
+      <main className="flex-1 px-4 pt-24 pb-6">
         <section className="mx-auto rounded p-5">
           <div className="mb-4 flex items-center justify-between">
           

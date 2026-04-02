@@ -2,10 +2,10 @@ import { Header } from "../components/header";
 
 export function DashboardPage() {
   return (
-    <div className="min-h-screen bg-[#f2f3f4]">
+    <div className="flex flex-col flex-1 bg-[#f2f3f4]">
       <Header />
 
-      <main className="mx-auto max-w-[1140px] px-4 py-5 pt-24">
+      <main className="flex-1 mx-auto max-w-[1140px] px-4 py-5 pt-24">
         <div className="grid grid-cols-[2fr_1fr] gap-[18px]">
           <Card title="My Tasks" height={220} />
           <Card title="About NExT" height={400} />

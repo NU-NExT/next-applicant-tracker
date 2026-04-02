@@ -161,10 +161,10 @@ export function LoginPage({ jobId }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f5f6] text-[#222]">
+    <div className="flex flex-col flex-1 bg-[#f4f5f6] text-[#222]">
       <Header />
 
-      <main className="mx-auto w-full max-w-[1200px] max-h-[800px] px-6 py-20 pt-24 mt-[50px]">
+      <main className="flex-1 mx-auto w-full max-w-[1200px] max-h-[800px] px-6 py-20 pt-24 mt-[50px]">
         <div className="flex flex-col items-center gap-4 h-full">
           <div className="w-full max-w-[600px] h-full">
             {hasToken ? (

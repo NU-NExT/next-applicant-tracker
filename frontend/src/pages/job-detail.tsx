@@ -6,10 +6,10 @@ type JobDetailPageProps = {
 
 export function JobDetailPage({ jobId }: JobDetailPageProps) {
   return (
-    <div className="min-h-screen bg-[#efefef]">
+    <div className="flex flex-col flex-1 bg-[#efefef]">
       <Header />
 
-      <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+      <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
         <section className="rounded-md border border-[#c7c7c7] bg-[#d8d8d8] p-6">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">Job {jobId}</h1>
           <p className="mt-3 text-lg leading-8 text-[#2d2d2d]">

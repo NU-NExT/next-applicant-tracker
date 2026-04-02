@@ -30,9 +30,9 @@ export function ConsentPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <div className="flex flex-col flex-1 bg-[#ececec]">
       <Header />
-      <main className="mx-auto max-w-[900px] px-4 pb-8 pt-24">
+      <main className="flex-1 mx-auto max-w-[900px] px-4 pb-8 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-white p-5">
           <h1 className="text-3xl font-semibold text-[#1f1f1f]">Data Consent</h1>
           <p className="mt-2 text-sm text-[#333]">

@@ -286,9 +286,9 @@ export function BuildApplicationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#efefef]">
+    <div className="flex flex-col flex-1 bg-[#efefef]">
       <Header />
-      <main className="mx-auto max-w-[1200px] px-4 pb-8 pt-24">
+      <main className="flex-1 mx-auto max-w-[1200px] px-4 pb-8 pt-24">
         <h1 className="mb-2 text-4xl font-semibold text-[#1f1f1f]">Build Application</h1>
 
         <form onSubmit={onSubmit} className="rounded-md border border-[#c7c7c7] bg-white p-5">

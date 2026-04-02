@@ -186,9 +186,9 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#efefef]">
+      <div className="flex flex-col flex-1 bg-[#efefef]">
         <Header />
-        <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+        <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
           <p className="text-[#666]">Loading application...</p>
         </main>
       </div>
@@ -197,9 +197,9 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
   if (!accessToken) {
     return (
-      <div className="min-h-screen bg-[#efefef]">
+      <div className="flex flex-col flex-1 bg-[#efefef]">
         <Header />
-        <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+        <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
           <section className="rounded-md border border-[#c7c7c7] bg-white p-6">
             <p className="text-[#444]">Please <a href="/login" className="underline">log in</a> to apply.</p>
           </section>
@@ -210,9 +210,9 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
   if (alreadyApplied) {
     return (
-      <div className="min-h-screen bg-[#efefef]">
+      <div className="flex flex-col flex-1 bg-[#efefef]">
         <Header />
-        <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+        <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
           <section className="rounded-md border border-[#c7c7c7] bg-white p-6">
             <h1 className="text-2xl font-semibold text-[#1f1f1f]">Already Applied</h1>
             <p className="mt-2 text-[#444]">
@@ -269,10 +269,10 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
   };
 
   return (
-    <div className="min-h-screen bg-[#efefef]">
+    <div className="flex flex-col flex-1 bg-[#efefef]">
       <Header />
 
-      <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
+      <main className="flex-1 mx-auto max-w-[1100px] px-4 pb-8 pt-24">
         <section className="rounded-md border border-[#c7c7c7] bg-white p-6">
           <h1 className="mb-1 text-3xl font-semibold text-[#1f1f1f]">Apply: Position {identifier}</h1>
           <p className="mb-6 text-sm text-[#4d4d4d]">Complete all steps to submit your application.</p>

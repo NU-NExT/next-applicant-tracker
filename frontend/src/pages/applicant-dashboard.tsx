@@ -23,10 +23,10 @@ export function ApplicantDashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <div className="flex flex-col flex-1 bg-[#ececec]">
       <Header />
 
-      <main className="mx-auto max-w-[1200px] px-4 pb-6 pt-24">
+      <main className="flex-1 mx-auto max-w-[1200px] px-4 pb-6 pt-24">
         <h1 className="mb-4 text-5xl font-medium text-[#1f1f1f]">Welcome, {localStorage.getItem("auth_user_name") ?? "User"}!</h1>
 
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">

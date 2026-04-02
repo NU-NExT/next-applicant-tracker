@@ -43,11 +43,11 @@ export const EMPTY_PROFILE_FORM: ProfileFormData = {
 };
 
 export const CURRENT_YEAR_OPTIONS = [
-  "Freshman",
-  "Sophomore",
-  "Junior",
-  "Senior",
-  "5th Year+",
+  "First Year",
+  "Second Year",
+  "Third Year",
+  "Fourth Year",
+  "Fifth Year+",
   "Graduate Student",
 ] as const;
 
@@ -83,6 +83,28 @@ function readStringWithFallback(...values: unknown[]): string {
     }
   }
   return "";
+}
+
+function normalizeCurrentYear(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return "";
+
+  const map: Record<string, string> = {
+    "freshman": "First Year",
+    "first year": "First Year",
+    "sophomore": "Second Year",
+    "second year": "Second Year",
+    "junior": "Third Year",
+    "third year": "Third Year",
+    "senior": "Fourth Year",
+    "fourth year": "Fourth Year",
+    "5th year+": "Fifth Year+",
+    "5th year": "Fifth Year+",
+    "fifth year+": "Fifth Year+",
+    "fifth year": "Fifth Year+",
+    "graduate student": "Graduate Student",
+  };
+  return map[normalized] ?? value;
 }
 
 export function parseClubList(value: unknown): string[] {
@@ -219,10 +241,12 @@ export function profileFullToProfileForm(profile: ProfileFull): ProfileFormData 
       candidateProfile.expected_graduation_date,
       globalProfile["Expected graduation date"],
     ),
-    currentYear: readStringWithFallback(
-      profile.current_year,
-      candidateProfile.current_year,
-      globalProfile["Current year / grade level"],
+    currentYear: normalizeCurrentYear(
+      readStringWithFallback(
+        profile.current_year,
+        candidateProfile.current_year,
+        globalProfile["Current year / grade level"],
+      ),
     ),
     major: readStringWithFallback(
       profile.major,

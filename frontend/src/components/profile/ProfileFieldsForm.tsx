@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CURRENT_YEAR_OPTIONS,
   GRADUATION_SEMESTER_OPTIONS,
   GRADUATION_YEAR_OPTIONS,
+  NORTHEASTERN_UNDERGRAD_MAJOR_OPTIONS,
   joinExpectedGraduationDate,
   splitExpectedGraduationDate,
   type ProfileFormData,
@@ -17,8 +18,14 @@ type ProfileFieldsFormProps = {
 export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
   const clubInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const fullLegalFromParts = (firstName: string, lastName: string) => `${firstName} ${lastName}`.trim();
+  const [majorInputFocused, setMajorInputFocused] = useState(false);
   const [graduationYear, setGraduationYear] = useState("");
   const [graduationSemester, setGraduationSemester] = useState("");
+  const filteredMajorOptions = useMemo(() => {
+    const query = data.major.trim().toLowerCase();
+    if (!query) return [];
+    return NORTHEASTERN_UNDERGRAD_MAJOR_OPTIONS.filter((option) => option.toLowerCase().includes(query));
+  }, [data.major]);
 
   useEffect(() => {
     const parsed = splitExpectedGraduationDate(data.expectedGraduationDate);
@@ -190,12 +197,42 @@ export function ProfileFieldsForm({ data, onChange }: ProfileFieldsFormProps) {
 
           <label className="block max-w-md text-sm">
             Major *
-            <input
-              value={data.major}
-              onChange={(e) => onChange({ major: e.target.value })}
-              className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-              required
-            />
+            <div className="relative mt-1">
+              <input
+                value={data.major}
+                onChange={(e) => onChange({ major: e.target.value })}
+                onFocus={() => setMajorInputFocused(true)}
+                onBlur={() => {
+                  window.setTimeout(() => setMajorInputFocused(false), 100);
+                }}
+                className="w-full rounded border border-[#d0d0d0] px-3 py-2"
+                placeholder="Type to search majors"
+                autoComplete="off"
+                required
+              />
+              {majorInputFocused && data.major.trim().length > 0 ? (
+                <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded border border-[#d0d0d0] bg-white shadow-md">
+                  {filteredMajorOptions.length > 0 ? (
+                    filteredMajorOptions.slice(0, 12).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          onChange({ major: option });
+                          setMajorInputFocused(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-[#1f1f1f] hover:bg-[#f3f3f3]"
+                      >
+                        {option}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-[#666]">No majors match search</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </label>
 
           <label className="block max-w-md text-sm">

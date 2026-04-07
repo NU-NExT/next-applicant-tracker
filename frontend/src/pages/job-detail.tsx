@@ -45,17 +45,20 @@ export function JobDetailPage({ jobId }: JobDetailPageProps) {
       <Header />
 
       <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
-        <section className="rounded-md border border-[#c7c7c7] bg-[#d8d8d8] p-6">
+        <section className="py-2">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">{title}</h1>
+          <div className="mt-3 h-[2px] w-full bg-[#1f6f5f]" />
           {loading ? <p className="mt-3 text-lg leading-8 text-[#2d2d2d]">Loading job description...</p> : null}
           {!loading && error ? <p className="mt-3 text-lg leading-8 text-[#2d2d2d]">{error}</p> : null}
           {!loading && !error ? <p className="mt-3 text-lg leading-8 text-[#2d2d2d]">{description}</p> : null}
-          <a
-            href={`/jobs/${jobId}/apply`}
-            className="mt-6 inline-flex rounded-md bg-[#1f6f5f] px-5 py-2 text-lg text-white no-underline"
-          >
-            Apply
-          </a>
+          <div className="mt-6 flex justify-end">
+            <a
+              href={`/jobs/${jobId}/apply`}
+              className="inline-flex rounded-md bg-[#1f6f5f] px-5 py-2 text-lg text-white no-underline"
+            >
+              Apply
+            </a>
+          </div>
         </section>
       </main>
     </div>

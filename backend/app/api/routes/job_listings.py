@@ -1,13 +1,66 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.schemas import JobListingCreate, JobListingRead, JobListingUpdate
+from app.api.authn import ensure_admin_user, require_bearer_token
+from app.api.schemas import (
+    JobListingAdminCreate,
+    JobListingAdminRead,
+    JobListingAdminUpdate,
+    JobListingCreate,
+    JobListingRead,
+    JobListingUpdate,
+    PositionQuestionCreate,
+    PositionQuestionRead,
+    PositionQuestionReorder,
+    PositionQuestionUpdate,
+)
+from app.config import settings
 from app.db import get_db
-from app.models.models import JobListing, QuestionnaireQuestion
+from app.models.models import ApplicationSubmission, JobListing, QuestionnaireQuestion, QuestionType
 
 router = APIRouter(prefix="/api/job-listings", tags=["job-listings"])
+
+
+def _assert_admin(authorization: str | None, db: Session) -> None:
+    token = require_bearer_token(authorization)
+    ensure_admin_user(db, token)
+
+
+def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
+    desc = listing.description
+    description_text = desc.get("text", "") if isinstance(desc, dict) else str(desc or "")
+    application_count = (
+        db.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.job_listing_id == listing.listing_id)
+        .count()
+    )
+    question_count = (
+        db.query(QuestionnaireQuestion)
+        .filter(
+            QuestionnaireQuestion.job_listing_id == listing.listing_id,
+            QuestionnaireQuestion.is_global == False,  # noqa: E712
+        )
+        .count()
+    )
+    return JobListingAdminRead(
+        listing_id=listing.listing_id,
+        code_id=listing.code_id,
+        position_title=listing.position_title,
+        description=description_text,
+        required_skills=listing.required_skills,
+        target_start_date=listing.target_start_date,
+        listing_date_end=listing.listing_date_end,
+        nuworks_url=listing.nuworks_url,
+        nuworks_position_id=listing.nuworks_position_id,
+        is_active=listing.is_active,
+        listing_date_created=listing.listing_date_created,
+        intake_url=f"{settings.frontend_url}/apply?position={listing.code_id}",
+        application_count=application_count,
+        question_count=question_count,
+    )
 
 
 def _normalize_position_fields(payload_dict: dict) -> None:
@@ -53,9 +106,245 @@ def _ensure_unique_code_id(db: Session, preferred_code: str | None) -> str:
             return generated
 
 
+def _get_listing_or_404(listing_id: int, db: Session) -> JobListing:
+    listing = db.query(JobListing).filter(JobListing.listing_id == listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
+    return listing
+
+
+def _get_question_or_404(listing_id: int, question_id: int, db: Session) -> QuestionnaireQuestion:
+    q = db.query(QuestionnaireQuestion).filter(
+        QuestionnaireQuestion.question_id == question_id,
+        QuestionnaireQuestion.job_listing_id == listing_id,
+    ).first()
+    if q is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    return q
+
+
+@router.get("/admin/{listing_id}/questions", response_model=list[PositionQuestionRead])
+def list_position_questions(
+    listing_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[QuestionnaireQuestion]:
+    _assert_admin(authorization, db)
+    _get_listing_or_404(listing_id, db)
+    return (
+        db.query(QuestionnaireQuestion)
+        .filter(
+            QuestionnaireQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == False,  # noqa: E712
+        )
+        .order_by(QuestionnaireQuestion.sort_order)
+        .all()
+    )
+
+
+@router.post("/admin/{listing_id}/questions", response_model=PositionQuestionRead, status_code=status.HTTP_201_CREATED)
+def create_position_question(
+    listing_id: int,
+    payload: PositionQuestionCreate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> QuestionnaireQuestion:
+    _assert_admin(authorization, db)
+    _get_listing_or_404(listing_id, db)
+    free_text_type = db.query(QuestionType).filter(QuestionType.code == "free_text").first()
+    question_type_id = free_text_type.question_type_id if free_text_type else 1
+    max_order = (
+        db.query(func.max(QuestionnaireQuestion.sort_order))
+        .filter(QuestionnaireQuestion.job_listing_id == listing_id)
+        .scalar()
+    )
+    next_order = (max_order + 1) if max_order is not None else 0
+    q = QuestionnaireQuestion(
+        job_listing_id=listing_id,
+        prompt=payload.prompt.strip(),
+        sort_order=next_order,
+        question_type_id=question_type_id,
+        character_limit=payload.character_limit,
+        is_global=False,
+    )
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+    return q
+
+
+@router.patch("/admin/{listing_id}/questions/reorder", response_model=list[PositionQuestionRead])
+def reorder_position_questions(
+    listing_id: int,
+    payload: PositionQuestionReorder,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[QuestionnaireQuestion]:
+    _assert_admin(authorization, db)
+    _get_listing_or_404(listing_id, db)
+    question_map = {
+        q.question_id: q
+        for q in db.query(QuestionnaireQuestion)
+        .filter(
+            QuestionnaireQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == False,  # noqa: E712
+        )
+        .all()
+    }
+    if set(payload.question_ids) != set(question_map.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="question_ids must match exactly the questions for this position",
+        )
+    for idx, qid in enumerate(payload.question_ids):
+        question_map[qid].sort_order = idx
+    db.commit()
+    return sorted(question_map.values(), key=lambda q: q.sort_order)
+
+
+@router.patch("/admin/{listing_id}/questions/{question_id}", response_model=PositionQuestionRead)
+def update_position_question(
+    listing_id: int,
+    question_id: int,
+    payload: PositionQuestionUpdate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> QuestionnaireQuestion:
+    _assert_admin(authorization, db)
+    q = _get_question_or_404(listing_id, question_id, db)
+    updates = payload.model_dump(exclude_unset=True)  # exclude_unset so null explicitly clears
+    if "prompt" in updates:
+        q.prompt = updates["prompt"].strip()
+    if "character_limit" in updates:
+        q.character_limit = updates["character_limit"]  # None is valid — clears the limit
+    db.commit()
+    db.refresh(q)
+    return q
+
+
+@router.delete("/admin/{listing_id}/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_position_question(
+    listing_id: int,
+    question_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> None:
+    _assert_admin(authorization, db)
+    q = _get_question_or_404(listing_id, question_id, db)
+    db.delete(q)
+    db.flush()
+    remaining = (
+        db.query(QuestionnaireQuestion)
+        .filter(
+            QuestionnaireQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == False,  # noqa: E712
+        )
+        .order_by(QuestionnaireQuestion.sort_order)
+        .all()
+    )
+    for idx, rq in enumerate(remaining):
+        rq.sort_order = idx
+    db.commit()
+
+
+@router.get("/admin", response_model=list[JobListingAdminRead])
+def list_admin_job_listings(
+    is_active: bool | None = None,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[JobListingAdminRead]:
+    _assert_admin(authorization, db)
+    q = db.query(JobListing)
+    if is_active is not None:
+        q = q.filter(JobListing.is_active == is_active)
+    listings = q.order_by(JobListing.listing_date_created.desc()).all()
+    return [_build_admin_read(listing, db) for listing in listings]
+
+
+@router.get("/admin/{job_listing_id}", response_model=JobListingAdminRead)
+def get_admin_job_listing(
+    job_listing_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> JobListingAdminRead:
+    _assert_admin(authorization, db)
+    listing = db.query(JobListing).filter(JobListing.listing_id == job_listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
+    return _build_admin_read(listing, db)
+
+
+@router.post("/admin", response_model=JobListingAdminRead, status_code=status.HTTP_201_CREATED)
+def create_admin_job_listing(
+    payload: JobListingAdminCreate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> JobListingAdminRead:
+    _assert_admin(authorization, db)
+    code_id = _ensure_unique_code_id(db, payload.code_id)
+    listing = JobListing(
+        position_title=payload.position_title.strip(),
+        job=payload.position_title.strip(),  # legacy column mirroring position_title; keep in sync
+        code_id=code_id,
+        description={"text": payload.description},
+        required_skills=payload.required_skills or None,
+        target_start_date=payload.target_start_date,
+        listing_date_end=payload.listing_date_end,
+        nuworks_url=payload.nuworks_url,
+        nuworks_position_id=payload.nuworks_position_id,
+        listing_slug=code_id.lower(),  # auto-generated; unique because code_id is unique
+        is_active=True,
+    )
+    db.add(listing)
+    db.commit()
+    db.refresh(listing)
+    return _build_admin_read(listing, db)
+
+
+@router.patch("/admin/{job_listing_id}", response_model=JobListingAdminRead)
+def patch_admin_job_listing(
+    job_listing_id: int,
+    payload: JobListingAdminUpdate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> JobListingAdminRead:
+    _assert_admin(authorization, db)
+    listing = db.query(JobListing).filter(JobListing.listing_id == job_listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
+    updates = payload.model_dump(exclude_unset=True)
+    if "position_title" in updates:
+        title = updates.pop("position_title").strip()
+        listing.position_title = title
+        listing.job = title  # keep legacy mirror in sync
+    if "description" in updates:
+        listing.description = {"text": updates.pop("description")}
+    for key, value in updates.items():
+        setattr(listing, key, value)
+    db.commit()
+    db.refresh(listing)
+    return _build_admin_read(listing, db)
+
+
+@router.patch("/admin/{job_listing_id}/deactivate", response_model=JobListingAdminRead)
+def deactivate_job_listing(
+    job_listing_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> JobListingAdminRead:
+    _assert_admin(authorization, db)
+    listing = db.query(JobListing).filter(JobListing.listing_id == job_listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
+    listing.is_active = False
+    db.commit()
+    db.refresh(listing)
+    return _build_admin_read(listing, db)
+
+
 @router.get("", response_model=list[JobListingRead])
 def list_job_listings(db: Session = Depends(get_db)) -> list[JobListing]:
-    return db.query(JobListing).order_by(JobListing.listing_date_created.desc()).all()
+    return db.query(JobListing).filter(JobListing.is_active == True).order_by(JobListing.listing_date_created.desc()).all()
 
 
 @router.get("/{job_listing_id}", response_model=JobListingRead)

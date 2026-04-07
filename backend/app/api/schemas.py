@@ -35,9 +35,9 @@ class JobMetadataRead(JobMetadataBase):
 class JobListingBase(BaseModel):
     code_id: str | None = None
     position_title: str | None = None
-    date_end: datetime
+    date_end: datetime | None = None
     job: str | None = None
-    description: dict[str, Any]
+    description: dict[str, Any] | list | str
     slug: str | None = None
     application_cycle_id: int | None = None
     status: str = "active"
@@ -114,6 +114,66 @@ class JobListingRead(JobListingBase):
     questions: list[QuestionnaireQuestionRead] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class JobListingAdminCreate(BaseModel):
+    position_title: str
+    code_id: str  # normalized to uppercase, immutable after creation
+    description: str = ""  # plain text; stored as {"text": "..."} in JSON col
+    required_skills: str = ""
+    target_start_date: datetime | None = None  # "listing_date_start" per SRS
+    listing_date_end: datetime | None = None  # nullable; SRS doesn't require it
+    nuworks_url: str | None = None
+    nuworks_position_id: str | None = None
+
+
+class JobListingAdminUpdate(BaseModel):
+    position_title: str | None = None
+    description: str | None = None
+    required_skills: str | None = None
+    target_start_date: datetime | None = None
+    listing_date_end: datetime | None = None
+    nuworks_url: str | None = None
+    nuworks_position_id: str | None = None
+    is_active: bool | None = None
+
+
+class JobListingAdminRead(BaseModel):
+    listing_id: int
+    code_id: str | None
+    position_title: str
+    description: str  # unwrapped from {"text": "..."}
+    required_skills: str | None
+    target_start_date: datetime | None
+    listing_date_end: datetime | None
+    nuworks_url: str | None
+    nuworks_position_id: str | None
+    is_active: bool
+    listing_date_created: datetime
+    intake_url: str  # f"{settings.frontend_url}/apply?position={code_id}"
+    application_count: int = 0
+    question_count: int = 0
+
+
+class PositionQuestionCreate(BaseModel):
+    prompt: str
+    character_limit: int | None = None
+
+
+class PositionQuestionUpdate(BaseModel):
+    prompt: str | None = None
+    character_limit: int | None = None
+
+
+class PositionQuestionReorder(BaseModel):
+    question_ids: list[int]
+
+
+class PositionQuestionRead(BaseModel):
+    question_id: int
+    prompt: str
+    sort_order: int
+    character_limit: int | None
 
 
 class ApplicationSubmissionBase(BaseModel):

@@ -11,8 +11,8 @@ resource "aws_security_group" "alb_sg" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -100,16 +100,71 @@ resource "aws_lb_listener" "frontend_http" {
   port              = 80
   protocol          = "HTTP"
   default_action {
+    type = "redirect"
+    redirect {
+      protocol    = "HTTPS"
+      port        = "443"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_acm_certificate" "alb_tls" {
+  domain_name               = local.route53_frontend_record_name
+  subject_alternative_names = [local.route53_api_record_name]
+  validation_method         = "DNS"
+  lifecycle {
+    create_before_destroy = true
+  }
+  tags = local.common_tags
+}
+
+resource "aws_route53_record" "alb_tls_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.alb_tls.domain_validation_options :
+    dvo.domain_name => {
+      name  = dvo.resource_record_name
+      value = dvo.resource_record_value
+      type  = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  zone_id         = local.route53_zone_id
+  name            = each.value.name
+  type            = each.value.type
+  ttl             = 60
+  records         = [each.value.value]
+}
+
+resource "aws_acm_certificate_validation" "alb_tls" {
+  certificate_arn         = aws_acm_certificate.alb_tls.arn
+  validation_record_fqdns = [for record in aws_route53_record.alb_tls_validation : record.fqdn]
+}
+
+resource "aws_lb_listener" "app_https" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-Res-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.alb_tls.certificate_arn
+  default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
   }
 }
 
-resource "aws_lb_listener" "backend_http" {
-  load_balancer_arn = aws_lb.app.arn
-  port              = 8080
-  protocol          = "HTTP"
-  default_action {
+resource "aws_lb_listener_rule" "api_backend" {
+  listener_arn = aws_lb_listener.app_https.arn
+  priority     = 100
+
+  condition {
+    path_pattern {
+      values = ["/api", "/api/*"]
+    }
+  }
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.backend.arn
   }

@@ -30,3 +30,20 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_high" {
   }
   tags = local.common_tags
 }
+
+resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx_high" {
+  alarm_name          = "${local.name_prefix}-api-gateway-5xx-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "5xx"
+  namespace           = "AWS/ApiGateway"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 10
+  alarm_description   = "API Gateway is returning elevated 5xx responses."
+  dimensions = {
+    ApiId = aws_apigatewayv2_api.http_api.id
+    Stage = aws_apigatewayv2_stage.default.name
+  }
+  tags = local.common_tags
+}

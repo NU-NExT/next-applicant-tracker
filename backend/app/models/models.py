@@ -258,3 +258,23 @@ class JobListingQuestion(Base):
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     job_listing_question_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     job_listing_question_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+
+class ConsentVersion(Base):
+    __tablename__ = "consent_versions"
+
+    consent_version_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    consent_text: Mapped[str] = mapped_column(Text, nullable=False)
+    consent_version_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+
+
+class ApplicationConsent(Base):
+    __tablename__ = "application_consents"
+
+    application_consent_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    job_listing_id: Mapped[int] = mapped_column(Integer, ForeignKey("job_listings.listing_id"), nullable=False, index=True)
+    application_submission_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("application_submissions.application_submission_id"), nullable=True, index=True)
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    consent_text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

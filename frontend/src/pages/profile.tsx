@@ -1,25 +1,27 @@
 import { type FormEvent, useEffect, useState } from "react";
 
-import { getMyProfile, updateMyProfile } from "../api";
+import { getMyFullProfile, updateMyFullProfile } from "../api";
 import { Header } from "../components/header";
+import { ProfileFieldsForm } from "../components/profile/ProfileFieldsForm";
+import {
+  EMPTY_PROFILE_FORM,
+  profileFormToUpdatePayload,
+  profileFullToProfileForm,
+  type ProfileFormData,
+} from "../components/profile/profileFormModel";
 
 export function ProfilePage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [metadataText, setMetadataText] = useState("{}");
+  const [profileForm, setProfileForm] = useState<ProfileFormData>(EMPTY_PROFILE_FORM);
   const [statusMessage, setStatusMessage] = useState("");
 
   useEffect(() => {
     if (!token) return;
     void (async () => {
       try {
-        const profile = await getMyProfile(token);
-        setFirstName(profile.first_name);
-        setLastName(profile.last_name);
-        setEmail(profile.email);
-        setMetadataText(JSON.stringify(profile.user_metadata ?? {}, null, 2));
+        const profile = await getMyFullProfile(token);
+        setProfileForm(profileFullToProfileForm(profile));
+        setStatusMessage("");
       } catch {
         setStatusMessage("Could not load profile.");
       }
@@ -32,63 +34,49 @@ export function ProfilePage() {
       setStatusMessage("Please sign in first.");
       return;
     }
+
     try {
-      const metadata = JSON.parse(metadataText || "{}") as Record<string, unknown>;
-      await updateMyProfile(token, {
-        first_name: firstName,
-        last_name: lastName,
-        user_metadata: metadata,
-      });
-      localStorage.setItem("auth_user_email", email);
-      localStorage.setItem("auth_user_name", `${firstName} ${lastName}`.trim() || email);
-      setStatusMessage("Profile updated. Existing submissions remain unchanged snapshots.");
-    } catch {
-      setStatusMessage("Could not update profile. Ensure metadata is valid JSON.");
+      const { payload, clubs } = profileFormToUpdatePayload(profileForm);
+      await updateMyFullProfile(token, payload);
+      setProfileForm((current) => ({ ...current, clubs }));
+      setStatusMessage("Profile updated.");
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        setStatusMessage(error.message);
+        return;
+      }
+      setStatusMessage("Could not update profile.");
     }
   };
 
   return (
     <div className="min-h-screen bg-[#ececec]">
       <Header />
-      <main className="mx-auto max-w-[900px] px-4 pb-8 pt-24">
+      <main className="mx-auto max-w-[1200px] px-4 pb-8 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-white p-5">
           <h1 className="text-3xl font-semibold text-[#1f1f1f]">My Profile</h1>
           <p className="mt-1 text-sm text-[#444]">Profile updates apply to future applications only.</p>
 
-          <form onSubmit={onSave} className="mt-4 space-y-3">
-            <label className="block text-sm">
-              Email
-              <input value={email} disabled className="mt-1 w-full rounded border border-[#d0d0d0] bg-[#f4f4f4] px-3 py-2" />
-            </label>
-            <label className="block text-sm">
-              First name
-              <input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              Last name
-              <input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              User metadata (JSON)
-              <textarea
-                value={metadataText}
-                onChange={(e) => setMetadataText(e.target.value)}
-                className="mt-1 h-48 w-full rounded border border-[#d0d0d0] px-3 py-2 font-mono text-xs"
-              />
-            </label>
+          <form
+            onSubmit={onSave}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) {
+                e.preventDefault();
+              }
+            }}
+            className="mt-6 space-y-6"
+          >
+            <ProfileFieldsForm
+              data={profileForm}
+              onChange={(updates) => setProfileForm((current) => ({ ...current, ...updates }))}
+            />
 
-            <button type="submit" className="rounded bg-[#1f6f5f] px-4 py-2 text-sm text-white">
-              Save Profile
-            </button>
-            {statusMessage ? <p className="text-sm text-[#333]">{statusMessage}</p> : null}
+            <div className="flex items-center gap-3">
+              <button type="submit" className="rounded bg-[#1f6f5f] px-4 py-2 text-sm text-white">
+                Save Profile
+              </button>
+              {statusMessage ? <p className="text-sm text-[#333]">{statusMessage}</p> : null}
+            </div>
           </form>
         </section>
       </main>

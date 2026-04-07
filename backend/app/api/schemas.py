@@ -237,6 +237,7 @@ class ProfileFullRead(BaseModel):
     # Profile fields
     full_legal_name: str | None = None
     phone_number: str | None = None
+    pronouns: str | None = None
     expected_graduation_date: str | None = None
     current_year: str | None = None
     coop_number: str | None = None
@@ -249,6 +250,7 @@ class ProfileFullRead(BaseModel):
     linkedin_url: str | None = None
     personal_website_url: str | None = None
     club: str | None = None
+    other_relevant_information: str | None = None
     past_experience_count: int | None = None
     unique_experience_count: int | None = None
 
@@ -262,6 +264,7 @@ class ProfileFullUpdate(BaseModel):
     # Profile fields
     full_legal_name: str | None = None
     phone_number: str | None = None
+    pronouns: str | None = None
     expected_graduation_date: str | None = None
     current_year: str | None = None
     coop_number: str | None = None
@@ -274,6 +277,7 @@ class ProfileFullUpdate(BaseModel):
     linkedin_url: str | None = None
     personal_website_url: str | None = None
     club: str | None = None
+    other_relevant_information: str | None = None
     past_experience_count: int | None = None
     unique_experience_count: int | None = None
 
@@ -349,6 +353,7 @@ class RoleRead(RoleBase):
 class ProfileBase(BaseModel):
     full_legal_name: str | None = None
     phone_number: str | None = None
+    pronouns: str | None = None
     expected_graduation_date: str | None = None
     current_year: str | None = None
     coop_number: str | None = None
@@ -359,6 +364,7 @@ class ProfileBase(BaseModel):
     github_url: str | None = None
     linkedin_url: str | None = None
     club: str | None = None
+    other_relevant_information: str | None = None
     past_experience_count: int | None = None
     unique_experience_count: int | None = None
     profile_edited_at: datetime | None = None

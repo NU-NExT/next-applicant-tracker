@@ -70,12 +70,12 @@ export function JobBoardPage() {
             {jobs.map((job) => (
               <li key={`${job.jobId}-${job.role}`} className="border-b border-[#8e8e8e] py-6">
                 <div className="flex items-start justify-between">
-                  <a href={`/jobs/${job.jobId}/login`} className="text-[40px] font-semibold text-[#1f6f5f] no-underline">
+                  <a href={`/jobs/${job.jobId}`} className="text-[40px] font-semibold text-[#1f6f5f] no-underline">
                     {job.role}
                   </a>
                   <div className="text-right">
                     <p className="text-[40px] leading-none font-semibold text-[#1f6f5f]">{job.semester}</p>
-                    {job.published ? <p className="mt-1 text-lg text-[#7f7f7f]">{job.published}</p> : null}
+                    {/* {job.published ? <p className="mt-1 text-lg text-[#7f7f7f]">{job.published}</p> : null} */}
                   </div>
                 </div>
                 {job.description ? (

@@ -35,11 +35,10 @@ ENV/
 
 # Frontend build output
 frontend/dist/
+frontend/.vite/
 
 # Terraform state
 infrastructure/terraform/.terraform/
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/terraform.tfvars
-
-.vite/

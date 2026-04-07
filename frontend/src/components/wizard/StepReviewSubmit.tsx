@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { RepositoryQuestion } from "../../api";
-import type { ProfileFormData } from "./StepProfileFields";
+import { joinClubList, joinLinkList, type ProfileFormData } from "../profile/profileFormModel";
 
 type StepReviewSubmitProps = {
   positionLabel: string;
@@ -103,23 +103,22 @@ export function StepReviewSubmit({
       <section>
         <h3 className="mb-2 text-lg font-semibold text-[#1f1f1f]">Profile</h3>
         <div className="divide-y divide-[#eee]">
-          <Row label="Full Legal Name" value={profile.full_legal_name} />
-          <Row label="Preferred Name" value={profile.first_name} />
+          <Row label="Full Legal Name" value={profile.fullLegalName} />
+          <Row label="Preferred Name" value={profile.preferredName} />
+          <Row label="Pronouns" value={profile.pronouns} />
           <Row label="Email" value={profile.email} />
-          <Row label="Expected Graduation" value={profile.expected_graduation_date} />
-          <Row label="Year / Grade" value={profile.current_year} />
-          <Row label="Co-op Number" value={profile.coop_number} />
+          <Row label="Expected Graduation" value={profile.expectedGraduationDate} />
+          <Row label="Year / Grade" value={profile.currentYear} />
           <Row label="Major" value={profile.major} />
           <Row label="Minor" value={profile.minor} />
           <Row label="Concentration" value={profile.concentration} />
-          <Row label="College" value={profile.college} />
           <Row label="GPA" value={profile.gpa} />
-          <Row label="GitHub" value={profile.github_url} />
-          <Row label="LinkedIn" value={profile.linkedin_url} />
-          <Row label="Personal Website" value={profile.personal_website_url} />
-          <Row label="Clubs / Extracurriculars" value={profile.club} />
-          <Row label="Paid Experiences" value={profile.past_experience_count?.toString() ?? ""} />
-          <Row label="Unpaid Experiences" value={profile.unique_experience_count?.toString() ?? ""} />
+          <Row label="GitHub" value={profile.githubUrl} />
+          <Row label="LinkedIn" value={profile.linkedinUrl} />
+          <Row label="Clubs / Extracurriculars" value={joinClubList(profile.clubs)} />
+          <Row label="Extra Links" value={joinLinkList(profile.userLinks)} />
+          <Row label="Paid Experiences" value={profile.paidExperienceCount} />
+          <Row label="Unpaid Experiences" value={profile.unpaidExperienceCount} />
         </div>
       </section>
 

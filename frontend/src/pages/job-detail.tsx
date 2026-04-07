@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Header } from "../components/header";
 
 type JobDetailPageProps = {
@@ -5,6 +6,19 @@ type JobDetailPageProps = {
 };
 
 export function JobDetailPage({ jobId }: JobDetailPageProps) {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_access_token");
+    if (!token) {
+      window.location.href = `/jobs/${jobId}/login`;
+      return;
+    }
+    setIsReady(true);
+  }, [jobId]);
+
+  if (!isReady) return null;
+
   return (
     <div className="min-h-screen bg-[#efefef]">
       <Header />

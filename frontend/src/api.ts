@@ -11,13 +11,14 @@ export type ApplicationRecord = {
 };
 
 export type JobDataRecord = {
-  id: number;
+  metadata_id?: number;
+  id?: number;
   release_date: string;
   end_date: string;
-  semester: string;
-  role: string;
+  semester?: string | null;
+  role?: string | null;
   pay: number;
-  description: string;
+  description?: string | null;
 };
 
 export type JobListingRecord = {

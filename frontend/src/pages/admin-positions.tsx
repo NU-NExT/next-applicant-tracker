@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { GlobalQuestionPicker } from "../components/global-question-picker";
 import { PositionQuestionBuilder } from "../components/position-question-builder";
 import {
   type AdminJobListingRecord,
@@ -17,7 +18,7 @@ type FormState = {
   position_title: string;
   code_id: string;
   description: string;
-  required_skills: string;
+
   target_start_date: string;
   listing_date_end: string;
   nuworks_url: string;
@@ -28,7 +29,7 @@ const emptyForm: FormState = {
   position_title: "",
   code_id: "",
   description: "",
-  required_skills: "",
+
   target_start_date: "",
   listing_date_end: "",
   nuworks_url: "",
@@ -56,6 +57,7 @@ export function AdminPositionsPage() {
   const [bufferedQuestions, setBufferedQuestions] = useState<
     { prompt: string; character_limit: number | null }[]
   >([]);
+  const [selectedGlobalIds, setSelectedGlobalIds] = useState<number[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -78,7 +80,7 @@ export function AdminPositionsPage() {
       position_title: pos.position_title,
       code_id: pos.code_id ?? "",
       description: pos.description,
-      required_skills: pos.required_skills ?? "",
+
       target_start_date: fromIsoDate(pos.target_start_date),
       listing_date_end: fromIsoDate(pos.listing_date_end),
       nuworks_url: pos.nuworks_url ?? "",
@@ -114,17 +116,19 @@ export function AdminPositionsPage() {
           position_title: form.position_title.trim(),
           code_id: form.code_id.trim().toUpperCase(),
           description: form.description.trim(),
-          required_skills: form.required_skills.trim(),
+
           target_start_date: toIsoDate(form.target_start_date),
           listing_date_end: toIsoDate(form.listing_date_end),
           nuworks_url: form.nuworks_url.trim() || null,
           nuworks_position_id: form.nuworks_position_id.trim() || null,
+          global_question_ids: selectedGlobalIds,
         };
         const created = await createAdminJobListing(token, payload);
         for (const q of bufferedQuestions) {
           await createPositionQuestion(token, created.listing_id, q);
         }
         setBufferedQuestions([]);
+        setSelectedGlobalIds([]);
         const refreshed = await getAdminJobListing(token, created.listing_id);
         setPositions((prev) => [refreshed, ...prev]);
         selectPosition(refreshed);
@@ -133,7 +137,7 @@ export function AdminPositionsPage() {
         const payload: AdminJobListingUpdatePayload = {
           position_title: form.position_title.trim(),
           description: form.description.trim(),
-          required_skills: form.required_skills.trim(),
+
           target_start_date: toIsoDate(form.target_start_date),
           listing_date_end: toIsoDate(form.listing_date_end),
           nuworks_url: form.nuworks_url.trim() || null,
@@ -293,18 +297,6 @@ export function AdminPositionsPage() {
                     />
                   </label>
 
-                  {/* Required Skills */}
-                  <label className="block text-sm font-medium text-[#2d2d2d]">
-                    Required Skills
-                    <textarea
-                      value={form.required_skills}
-                      onChange={(e) => setForm((f) => ({ ...f, required_skills: e.target.value }))}
-                      rows={3}
-                      className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2 text-sm"
-                      placeholder="e.g. Python, React, SQL..."
-                    />
-                  </label>
-
                   {/* Dates */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block text-sm font-medium text-[#2d2d2d]">
@@ -386,7 +378,19 @@ export function AdminPositionsPage() {
                     </div>
                   )}
 
-                  {/* Question builder */}
+                  {/* Global question picker */}
+                  {mode === "edit" && selected && (
+                    <GlobalQuestionPicker listingId={selected.listing_id} token={token} />
+                  )}
+                  {mode === "create" && (
+                    <GlobalQuestionPicker
+                      listingId={null}
+                      token={token}
+                      onSelectionChange={setSelectedGlobalIds}
+                    />
+                  )}
+
+                  {/* Position-specific question builder */}
                   {mode === "edit" && selected && (
                     <PositionQuestionBuilder listingId={selected.listing_id} token={token} />
                   )}

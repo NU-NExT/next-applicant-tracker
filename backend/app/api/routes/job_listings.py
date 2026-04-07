@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.api.authn import ensure_admin_user, require_bearer_token
 from app.api.schemas import (
+    GlobalQuestionBankRead,
+    GlobalQuestionSelectionPayload,
     JobListingAdminCreate,
     JobListingAdminRead,
     JobListingAdminUpdate,
@@ -19,7 +21,7 @@ from app.api.schemas import (
 )
 from app.config import settings
 from app.db import get_db
-from app.models.models import ApplicationSubmission, JobListing, QuestionnaireQuestion, QuestionType
+from app.models.models import ApplicationSubmission, JobListing, JobListingQuestion, QuestionnaireQuestion, QuestionType
 
 router = APIRouter(prefix="/api/job-listings", tags=["job-listings"])
 
@@ -247,6 +249,104 @@ def delete_position_question(
     db.commit()
 
 
+@router.get("/admin/global-questions", response_model=list[GlobalQuestionBankRead])
+def list_global_questions(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[QuestionnaireQuestion]:
+    _assert_admin(authorization, db)
+    return (
+        db.query(QuestionnaireQuestion)
+        .filter(QuestionnaireQuestion.is_global == True)  # noqa: E712
+        .order_by(QuestionnaireQuestion.sort_order, QuestionnaireQuestion.question_id)
+        .all()
+    )
+
+
+@router.get("/admin/{listing_id}/global-questions", response_model=list[GlobalQuestionBankRead])
+def list_position_global_questions(
+    listing_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    _assert_admin(authorization, db)
+    _get_listing_or_404(listing_id, db)
+    rows = (
+        db.query(QuestionnaireQuestion)
+        .join(JobListingQuestion, JobListingQuestion.question_id == QuestionnaireQuestion.question_id)
+        .filter(
+            JobListingQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == True,  # noqa: E712
+        )
+        .order_by(JobListingQuestion.sequence_number)
+        .all()
+    )
+    return rows
+
+
+@router.put("/admin/{listing_id}/global-questions", response_model=list[GlobalQuestionBankRead])
+def set_position_global_questions(
+    listing_id: int,
+    payload: GlobalQuestionSelectionPayload,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[QuestionnaireQuestion]:
+    _assert_admin(authorization, db)
+    _get_listing_or_404(listing_id, db)
+
+    if payload.question_ids:
+        global_questions = (
+            db.query(QuestionnaireQuestion)
+            .filter(
+                QuestionnaireQuestion.question_id.in_(payload.question_ids),
+                QuestionnaireQuestion.is_global == True,  # noqa: E712
+            )
+            .all()
+        )
+        found_ids = {q.question_id for q in global_questions}
+        missing = set(payload.question_ids) - found_ids
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question IDs not found or not global: {sorted(missing)}",
+            )
+
+    # Delete existing global question associations for this listing
+    existing = (
+        db.query(JobListingQuestion)
+        .join(QuestionnaireQuestion, JobListingQuestion.question_id == QuestionnaireQuestion.question_id)
+        .filter(
+            JobListingQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == True,  # noqa: E712
+        )
+        .all()
+    )
+    for row in existing:
+        db.delete(row)
+
+    # Insert new associations
+    for idx, qid in enumerate(payload.question_ids):
+        db.add(JobListingQuestion(
+            job_listing_id=listing_id,
+            question_id=qid,
+            sequence_number=idx,
+        ))
+
+    db.commit()
+
+    # Return the newly associated global questions
+    return (
+        db.query(QuestionnaireQuestion)
+        .join(JobListingQuestion, JobListingQuestion.question_id == QuestionnaireQuestion.question_id)
+        .filter(
+            JobListingQuestion.job_listing_id == listing_id,
+            QuestionnaireQuestion.is_global == True,  # noqa: E712
+        )
+        .order_by(JobListingQuestion.sequence_number)
+        .all()
+    )
+
+
 @router.get("/admin", response_model=list[JobListingAdminRead])
 def list_admin_job_listings(
     is_active: bool | None = None,
@@ -296,6 +396,16 @@ def create_admin_job_listing(
         is_active=True,
     )
     db.add(listing)
+    db.flush()
+
+    # Associate selected global questions via junction table
+    for idx, qid in enumerate(payload.global_question_ids):
+        db.add(JobListingQuestion(
+            job_listing_id=listing.listing_id,
+            question_id=qid,
+            sequence_number=idx,
+        ))
+
     db.commit()
     db.refresh(listing)
     return _build_admin_read(listing, db)
@@ -359,6 +469,7 @@ def get_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> JobLi
 def create_job_listing(payload: JobListingCreate, db: Session = Depends(get_db)) -> JobListing:
     payload_dict = _map_job_listing_payload(payload.model_dump())
     question_payloads = payload_dict.pop("questions", [])
+    global_question_ids = payload_dict.pop("global_question_ids", [])
     if payload_dict.get("listing_date_created") is None:
         payload_dict.pop("listing_date_created", None)
     _normalize_position_fields(payload_dict)
@@ -369,7 +480,10 @@ def create_job_listing(payload: JobListingCreate, db: Session = Depends(get_db))
     db.add(job_listing)
     db.flush()
 
+    # Create position-specific questions only (skip any marked is_global)
     for question in question_payloads:
+        if question.get("is_global", False):
+            continue
         db.add(
             QuestionnaireQuestion(
                 job_listing_id=job_listing.listing_id,
@@ -377,9 +491,17 @@ def create_job_listing(payload: JobListingCreate, db: Session = Depends(get_db))
                 sort_order=question.get("sort_order", 0),
                 question_type_id=question["question_type_id"],
                 character_limit=question.get("character_limit"),
-                is_global=question.get("is_global", False),
+                is_global=False,
             )
         )
+
+    # Associate selected global questions via junction table
+    for idx, qid in enumerate(global_question_ids):
+        db.add(JobListingQuestion(
+            job_listing_id=job_listing.listing_id,
+            question_id=qid,
+            sequence_number=idx,
+        ))
 
     db.commit()
     db.refresh(job_listing)
@@ -462,6 +584,7 @@ def delete_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> No
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
 
+    db.query(JobListingQuestion).filter(JobListingQuestion.job_listing_id == job_listing.listing_id).delete()
     db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == job_listing.listing_id).delete()
     db.delete(job_listing)
     db.commit()

@@ -77,6 +77,7 @@ export type JobListingCreatePayload = {
     answer_config_json?: Record<string, unknown> | null;
     is_global?: boolean;
   }>;
+  global_question_ids?: number[];
 };
 
 export type RepositoryQuestion = {
@@ -560,11 +561,12 @@ export type AdminJobListingCreatePayload = {
   position_title: string;
   code_id: string;
   description: string;
-  required_skills: string;
+  required_skills?: string;
   target_start_date: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
   nuworks_position_id: string | null;
+  global_question_ids?: number[];
 };
 
 export type AdminJobListingUpdatePayload = Partial<
@@ -692,6 +694,50 @@ export async function reorderPositionQuestions(
 ): Promise<PositionQuestionRecord[]> {
   const response = await apiClient.patch<PositionQuestionRecord[]>(
     `/api/job-listings/admin/${listingId}/questions/reorder`,
+    { question_ids: questionIds },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+// ── Global question bank management ──────────────────────────────────────────
+
+export type GlobalQuestionRecord = {
+  question_id: number;
+  prompt: string;
+  sort_order: number;
+  question_type_id: number;
+  character_limit: number | null;
+};
+
+export async function getGlobalQuestionBank(
+  token: string
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.get<GlobalQuestionRecord[]>(
+    "/api/job-listings/admin/global-questions",
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function getPositionGlobalQuestions(
+  token: string,
+  listingId: number
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.get<GlobalQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/global-questions`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function setPositionGlobalQuestions(
+  token: string,
+  listingId: number,
+  questionIds: number[]
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.put<GlobalQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/global-questions`,
     { question_ids: questionIds },
     { headers: { Authorization: `Bearer ${token}` } }
   );

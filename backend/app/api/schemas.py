@@ -98,6 +98,7 @@ class QuestionnaireQuestionRead(QuestionnaireQuestionBase):
 class JobListingCreate(JobListingBase):
     date_created: datetime | None = None
     questions: list[QuestionnaireQuestionCreate] = Field(default_factory=list)
+    global_question_ids: list[int] = Field(default_factory=list)
 
 
 class JobListingUpdate(BaseModel):
@@ -116,6 +117,20 @@ class JobListingRead(JobListingBase):
     model_config = {"from_attributes": True}
 
 
+class GlobalQuestionBankRead(BaseModel):
+    question_id: int
+    prompt: str
+    sort_order: int
+    question_type_id: int
+    character_limit: int | None
+
+    model_config = {"from_attributes": True}
+
+
+class GlobalQuestionSelectionPayload(BaseModel):
+    question_ids: list[int]
+
+
 class JobListingAdminCreate(BaseModel):
     position_title: str
     code_id: str  # normalized to uppercase, immutable after creation
@@ -125,6 +140,7 @@ class JobListingAdminCreate(BaseModel):
     listing_date_end: datetime | None = None  # nullable; SRS doesn't require it
     nuworks_url: str | None = None
     nuworks_position_id: str | None = None
+    global_question_ids: list[int] = Field(default_factory=list)
 
 
 class JobListingAdminUpdate(BaseModel):

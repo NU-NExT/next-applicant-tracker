@@ -44,6 +44,7 @@ from app.models.models import (
     ApplicationStatus,
     ApplicationSubmission,
     FieldOption,
+    JobMetadata,
     JobListing,
     JobListingQuestion,
     Profile,
@@ -65,6 +66,7 @@ DATABASE_URL = os.getenv(
 # target them without touching real data.
 SEED_EMAIL_DOMAIN = "@nextseed.northeastern.edu"
 SEED_CYCLE_SLUG = "spring-2026-seed"
+SEED_METADATA_SEMESTER = "Spring 2026 (Seed)"
 
 fake = Faker()
 Faker.seed(42)
@@ -89,7 +91,7 @@ SCORE_VALUES = [
 
 APPLICATION_STATUSES = [
     {"code": "applied", "label": "Applied"},
-    {"code": "under_review", "label": "Under Review"},
+    {"code": "in_review", "label": "In Review"},
     {"code": "assessment_sent", "label": "Assessment Sent"},
     {"code": "assessment_complete", "label": "Assessment Complete"},
     {"code": "interview_invited", "label": "Interview Invited"},
@@ -291,8 +293,8 @@ APPLICANT_STATUSES = [
     "submitted",
     "submitted",
     "submitted",
-    "under_review",
-    "under_review",
+    "in_review",
+    "in_review",
     "assessment_sent",
     "interview_invited",
     "offer_extended",
@@ -338,6 +340,39 @@ def _profile_snapshot(user: User, profile: Profile) -> dict:
         "github_url": profile.github_url,
         "linkedin_url": profile.linkedin_url,
     }
+
+
+def sync_pk_sequences(db: Session) -> None:
+    """Align PostgreSQL serial sequences with current table maxima."""
+    print("  Syncing primary key sequences …")
+    sequence_targets: list[tuple[str, str]] = [
+        ("job_metadata", "metadata_id"),
+        ("question_types", "question_type_id"),
+        ("score_values", "score_value_id"),
+        ("application_statuses", "application_status_id"),
+        ("field_options", "field_option_id"),
+        ("application_cycles", "application_cycle_id"),
+        ("job_listings", "listing_id"),
+        ("questionnaire_questions", "question_id"),
+        ("job_listing_questions", "job_listing_question_id"),
+        ("users", "user_id"),
+        ("profiles", "profile_id"),
+        ("application_submissions", "application_submission_id"),
+        ("application_question_responses", "application_question_response_id"),
+    ]
+    for table_name, column_name in sequence_targets:
+        db.execute(
+            text(
+                f"""
+                SELECT setval(
+                    pg_get_serial_sequence('{table_name}', '{column_name}'),
+                    COALESCE((SELECT MAX({column_name}) FROM {table_name}), 1),
+                    (SELECT MAX({column_name}) IS NOT NULL FROM {table_name})
+                )
+                """
+            )
+        )
+    db.flush()
 
 
 # ── Seeding functions ─────────────────────────────────────────────────────────
@@ -472,7 +507,7 @@ def clear_seed_data(db: Session) -> None:
         db.execute(
             text(
                 "DELETE FROM questionnaire_questions "
-                "WHERE job_listing_id = ANY(:ids) AND is_global = FALSE"
+                "WHERE job_listing_id = ANY(:ids)"
             ),
             {"ids": seeded_listing_ids},
         )
@@ -481,16 +516,22 @@ def clear_seed_data(db: Session) -> None:
             {"ids": seeded_listing_ids},
         )
 
-    db.execute(
-        text(
-            "DELETE FROM questionnaire_questions "
-            "WHERE is_global = TRUE AND prompt LIKE '%nextseed%'"
+    for prompt, _qt_code, _char_limit, _is_global in GLOBAL_QUESTIONS:
+        db.execute(
+            text(
+                "DELETE FROM questionnaire_questions "
+                "WHERE is_global = TRUE AND prompt = :prompt"
+            ),
+            {"prompt": prompt},
         )
-    )
 
     db.execute(
         text("DELETE FROM application_cycles WHERE slug = :slug"),
         {"slug": SEED_CYCLE_SLUG},
+    )
+    db.execute(
+        text("DELETE FROM job_metadata WHERE semester = :semester"),
+        {"semester": SEED_METADATA_SEMESTER},
     )
 
     db.flush()
@@ -506,6 +547,32 @@ def seed_application_cycle(db: Session) -> ApplicationCycle:
     db.flush()
     print(f"  Created application cycle: {cycle.name}")
     return cycle
+
+
+def seed_job_metadata(db: Session) -> None:
+    print("  Seeding homepage job metadata …")
+    now = _now()
+    for defn in LISTING_DEFINITIONS:
+        role = defn["position_title"]
+        existing = (
+            db.query(JobMetadata)
+            .filter_by(role=role, semester=SEED_METADATA_SEMESTER)
+            .first()
+        )
+        if existing:
+            continue
+
+        db.add(
+            JobMetadata(
+                release_date=now - timedelta(days=14),
+                end_date=now + timedelta(days=1),
+                semester=SEED_METADATA_SEMESTER,
+                role=role,
+                pay=30,
+                description="\n\n".join(defn["description_paragraphs"]),
+            )
+        )
+    db.flush()
 
 
 def seed_job_listings(
@@ -578,6 +645,23 @@ def seed_job_listings(
                     .filter_by(job_listing_id=listing.listing_id, prompt=prompt)
                     .first()
                 )
+                already_linked = (
+                    db.query(JobListingQuestion)
+                    .filter_by(
+                        job_listing_id=listing.listing_id,
+                        question_id=q.question_id,
+                    )
+                    .first()
+                )
+                if not already_linked:
+                    db.add(
+                        JobListingQuestion(
+                            job_listing_id=listing.listing_id,
+                            question_id=q.question_id,
+                            sequence_number=seq,
+                        )
+                    )
+                    db.flush()
                 questions.append(q)
             seq += 1
 
@@ -589,7 +673,7 @@ def seed_job_listings(
             )
             if not existing_global:
                 existing_global = QuestionnaireQuestion(
-                    job_listing_id=listing.listing_id,
+                    job_listing_id=None,
                     prompt=prompt,
                     sort_order=seq,
                     question_type_id=qt_map[qt_code],
@@ -744,16 +828,22 @@ def main() -> None:
                 print("\n[reset] Removing previous seed data …")
                 clear_seed_data(db)
 
-            print("\n[1/4] Reference data")
+            print("\n[0/5] Sequence alignment")
+            sync_pk_sequences(db)
+
+            print("\n[1/5] Reference data")
             qt_map = seed_reference_data(db)
 
-            print("\n[2/4] Application cycle")
+            print("\n[2/5] Application cycle")
             cycle = seed_application_cycle(db)
 
-            print("\n[3/4] Job listings & questions")
+            print("\n[3/5] Homepage job metadata")
+            seed_job_metadata(db)
+
+            print("\n[4/5] Job listings & questions")
             listing_questions = seed_job_listings(db, cycle, qt_map)
 
-            print("\n[4/4] Users, profiles & submissions")
+            print("\n[5/5] Users, profiles & submissions")
             seed_users_and_submissions(db, listing_questions, qt_map)
 
             db.commit()

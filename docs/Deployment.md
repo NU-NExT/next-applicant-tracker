@@ -87,8 +87,6 @@ To work with the deployed resources, the following IAM permissions are needed:
 
 > **TODO:** Confirm whether access is via IAM user with access keys, IAM role assumption (e.g., `aws sts assume-role`), or AWS SSO (`aws sso login`).
 
-> **TODO:** Document the AWS account ID and account owner / team contact before handoff.
-
 ### 2.3 Cognito Access
 
 Cognito is configured as follows, based on the Terraform:

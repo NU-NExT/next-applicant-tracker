@@ -291,6 +291,11 @@ export async function getJobData(): Promise<JobDataRecord[]> {
   return response.data;
 }
 
+export async function getJobDataById(jobId: number): Promise<JobDataRecord> {
+  const response = await apiClient.get<JobDataRecord>(`/api/job-data/${jobId}`);
+  return response.data;
+}
+
 export async function getJobListings(): Promise<JobListingRecord[]> {
   const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
   return response.data;

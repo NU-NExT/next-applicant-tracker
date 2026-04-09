@@ -78,6 +78,7 @@ export type JobListingCreatePayload = {
     answer_config_json?: Record<string, unknown> | null;
     is_global?: boolean;
   }>;
+  global_question_ids?: number[];
 };
 
 export type RepositoryQuestion = {
@@ -287,6 +288,11 @@ export const apiClient = axios.create({
 
 export async function getJobData(): Promise<JobDataRecord[]> {
   const response = await apiClient.get<JobDataRecord[]>("/api/job-data");
+  return response.data;
+}
+
+export async function getJobDataById(jobId: number): Promise<JobDataRecord> {
+  const response = await apiClient.get<JobDataRecord>(`/api/job-data/${jobId}`);
   return response.data;
 }
 
@@ -548,4 +554,210 @@ export async function deleteFieldOption(optionId: number, accessToken: string): 
   await apiClient.delete(`/api/admin/field-options/${optionId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+}
+
+// ── Admin position management ──────────────────────────────────────────────
+
+export type AdminJobListingRecord = {
+  listing_id: number;
+  code_id: string | null;
+  position_title: string;
+  description: string;
+  required_skills: string | null;
+  target_start_date: string | null;
+  listing_date_end: string | null;
+  nuworks_url: string | null;
+  nuworks_position_id: string | null;
+  is_active: boolean;
+  listing_date_created: string;
+  intake_url: string;
+  application_count: number;
+  question_count: number;
+};
+
+export type AdminJobListingCreatePayload = {
+  position_title: string;
+  code_id: string;
+  description: string;
+  required_skills?: string;
+  target_start_date: string | null;
+  listing_date_end: string | null;
+  nuworks_url: string | null;
+  nuworks_position_id: string | null;
+  global_question_ids?: number[];
+};
+
+export type AdminJobListingUpdatePayload = Partial<
+  Omit<AdminJobListingCreatePayload, "code_id"> & { is_active: boolean }
+>;
+
+export async function getAdminJobListings(
+  token: string,
+  isActive?: boolean
+): Promise<AdminJobListingRecord[]> {
+  const params = isActive !== undefined ? { is_active: isActive } : {};
+  const response = await apiClient.get<AdminJobListingRecord[]>("/api/job-listings/admin", {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
+  return response.data;
+}
+
+export async function getAdminJobListing(
+  token: string,
+  id: number
+): Promise<AdminJobListingRecord> {
+  const response = await apiClient.get<AdminJobListingRecord>(`/api/job-listings/admin/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function createAdminJobListing(
+  token: string,
+  payload: AdminJobListingCreatePayload
+): Promise<AdminJobListingRecord> {
+  const response = await apiClient.post<AdminJobListingRecord>("/api/job-listings/admin", payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function updateAdminJobListing(
+  token: string,
+  id: number,
+  payload: AdminJobListingUpdatePayload
+): Promise<AdminJobListingRecord> {
+  const response = await apiClient.patch<AdminJobListingRecord>(
+    `/api/job-listings/admin/${id}`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function deactivateJobListing(
+  token: string,
+  id: number
+): Promise<AdminJobListingRecord> {
+  const response = await apiClient.patch<AdminJobListingRecord>(
+    `/api/job-listings/admin/${id}/deactivate`,
+    {},
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+// ── Position question management ───────────────────────────────────────────
+
+export type PositionQuestionRecord = {
+  question_id: number;
+  prompt: string;
+  sort_order: number;
+  character_limit: number | null;
+};
+
+export async function getPositionQuestions(
+  token: string,
+  listingId: number
+): Promise<PositionQuestionRecord[]> {
+  const response = await apiClient.get<PositionQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/questions`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function createPositionQuestion(
+  token: string,
+  listingId: number,
+  payload: { prompt: string; character_limit: number | null }
+): Promise<PositionQuestionRecord> {
+  const response = await apiClient.post<PositionQuestionRecord>(
+    `/api/job-listings/admin/${listingId}/questions`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function updatePositionQuestion(
+  token: string,
+  listingId: number,
+  questionId: number,
+  payload: { prompt?: string; character_limit?: number | null }
+): Promise<PositionQuestionRecord> {
+  const response = await apiClient.patch<PositionQuestionRecord>(
+    `/api/job-listings/admin/${listingId}/questions/${questionId}`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function deletePositionQuestion(
+  token: string,
+  listingId: number,
+  questionId: number
+): Promise<void> {
+  await apiClient.delete(`/api/job-listings/admin/${listingId}/questions/${questionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function reorderPositionQuestions(
+  token: string,
+  listingId: number,
+  questionIds: number[]
+): Promise<PositionQuestionRecord[]> {
+  const response = await apiClient.patch<PositionQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/questions/reorder`,
+    { question_ids: questionIds },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+// ── Global question bank management ──────────────────────────────────────────
+
+export type GlobalQuestionRecord = {
+  question_id: number;
+  prompt: string;
+  sort_order: number;
+  question_type_id: number;
+  character_limit: number | null;
+};
+
+export async function getGlobalQuestionBank(
+  token: string
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.get<GlobalQuestionRecord[]>(
+    "/api/job-listings/admin/global-questions",
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function getPositionGlobalQuestions(
+  token: string,
+  listingId: number
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.get<GlobalQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/global-questions`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
+}
+
+export async function setPositionGlobalQuestions(
+  token: string,
+  listingId: number,
+  questionIds: number[]
+): Promise<GlobalQuestionRecord[]> {
+  const response = await apiClient.put<GlobalQuestionRecord[]>(
+    `/api/job-listings/admin/${listingId}/global-questions`,
+    { question_ids: questionIds },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return response.data;
 }

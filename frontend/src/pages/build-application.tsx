@@ -2,6 +2,7 @@ import { type DragEvent, type FormEvent, useEffect, useState } from "react";
 import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { createFieldOption, createJobListing, deleteFieldOption, getFieldOptions, type FieldOptionRecord } from "../api";
+import { GlobalQuestionPicker } from "../components/global-question-picker";
 import { Header } from "../components/header";
 import {
   DropdownMenu,
@@ -47,38 +48,6 @@ const makeQuestion = (
 });
 
 const defaultQuestionnairePagesSeed: Array<Omit<QuestionnairePage, "id">> = [
-  {
-    title: "Global Questions",
-    description: "Global structured fields",
-    questions: [
-      makeQuestion("Full legal name", "free_text", { is_global: true }),
-      makeQuestion("Preferred name (optional)", "free_text", { is_global: true }),
-      makeQuestion("Northeastern email", "free_text", { is_global: true }),
-      makeQuestion("Expected graduation date", "date", { is_global: true }),
-      makeQuestion("Current year / grade level", "free_text", { is_global: true }),
-      makeQuestion("Co-op number (1st, 2nd, 3rd, etc.)", "number", { is_global: true }),
-      makeQuestion("Major(s) - selected from a maintained dropdown list", "dropdown", {
-        is_global: true,
-        managedCategory: "major",
-      }),
-      makeQuestion("Minor(s) - selected from a maintained dropdown list (optional)", "dropdown", {
-        is_global: true,
-        managedCategory: "minor",
-      }),
-      makeQuestion("Concentration - selected from a maintained dropdown list (optional)", "dropdown", {
-        is_global: true,
-        managedCategory: "concentration",
-      }),
-      makeQuestion("College / school within Northeastern", "free_text", { is_global: true }),
-      makeQuestion("GPA (optional)", "free_text", { is_global: true }),
-      makeQuestion("GitHub URL (optional)", "free_text", { is_global: true }),
-      makeQuestion("LinkedIn URL (optional)", "free_text", { is_global: true }),
-      makeQuestion("Clubs and extracurricular activities (list)", "free_text", { is_global: true }),
-      makeQuestion("Count of paid work experiences since high school graduation", "number", { is_global: true }),
-      makeQuestion("Count of unpaid/volunteer experiences since high school graduation", "number", { is_global: true }),
-      makeQuestion("Resume upload (PDF, max 1MB)", "free_text", { is_global: true }),
-    ],
-  },
   {
     title: "Role Questions",
     description: "Role-specific and technical prompts",
@@ -144,6 +113,7 @@ export function BuildApplicationPage() {
     minor: "",
     concentration: "",
   });
+  const [selectedGlobalIds, setSelectedGlobalIds] = useState<number[]>([]);
 
   const activeQuestionnairePage = questionnairePages.find((page) => page.id === activeTabId) ?? null;
 
@@ -232,15 +202,16 @@ export function BuildApplicationPage() {
         position_title: job,
         job,
         description: descriptionText,
+        global_question_ids: selectedGlobalIds,
         questions: questionnairePages.flatMap((page, groupIndex) =>
           page.questions
-            .filter((question) => question.prompt.trim().length > 0)
+            .filter((question) => question.prompt.trim().length > 0 && !question.is_global)
             .map((question, questionIndex) => ({
               prompt: question.prompt.trim(),
               sort_order: groupIndex * 100 + questionIndex,
               question_type: question.question_type,
               character_limit: question.character_limit,
-              is_global: question.is_global || page.title.toLowerCase().includes("global"),
+              is_global: false,
               question_config_json:
                 question.question_type === "dropdown"
                   ? {
@@ -312,6 +283,13 @@ export function BuildApplicationPage() {
               />
             </label>
           </div>
+
+          {/* Global question picker — select from the bank */}
+          <GlobalQuestionPicker
+            listingId={null}
+            token={token}
+            onSelectionChange={setSelectedGlobalIds}
+          />
 
           <div className="mt-4 grid gap-4 md:grid-cols-[300px_1fr]">
             <aside className="flex flex-col gap-2 border-r border-[#d8d8d8] pr-3">

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     cognito_app_client_secret: str = ""
     cognito_admin_group_name: str = "ADMIN"
 
+    frontend_url: str = "http://localhost:3000"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import JobListingCreate, JobListingRead, JobListingUpdate
 from app.db import get_db
-from app.models.models import JobListing, QuestionnaireQuestion
+from app.models.models import JobListing, JobListingQuestion, QuestionnaireQuestion
 
 router = APIRouter(prefix="/api/positions", tags=["positions"])
 
@@ -49,6 +49,7 @@ def delete_position(position_id: int, db: Session = Depends(get_db)) -> None:
     position = db.query(JobListing).filter(JobListing.listing_id == position_id).first()
     if position is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    db.query(JobListingQuestion).filter(JobListingQuestion.job_listing_id == position.listing_id).delete()
     db.query(QuestionnaireQuestion).filter(QuestionnaireQuestion.job_listing_id == position.listing_id).delete()
     db.delete(position)
     db.commit()

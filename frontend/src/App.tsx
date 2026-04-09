@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminApplicantStatsPage } from "./pages/admin-applicant-stats";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminEditJobPostPage } from "./pages/admin-edit-job-post";
+import { AdminPositionsPage } from "./pages/admin-positions";
 import { AdminReviewApplicationsPage } from "./pages/admin-review-applications";
 import { ApplicantDashboardPage } from "./pages/applicant-dashboard";
 import { AuthChooseAccountPage } from "./pages/auth-choose-account";
@@ -60,6 +61,10 @@ export function App() {
 
   if (path === "/admin/review-applications") {
     return <AdminReviewApplicationsPage />;
+  }
+
+  if (path === "/admin/positions") {
+    return <AdminPositionsPage />;
   }
 
   if (path === "/applicant-dashboard") {

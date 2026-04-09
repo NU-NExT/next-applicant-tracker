@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models.models import JobListing, QuestionnaireQuestion
+from app.models.models import JobListing, JobListingQuestion, QuestionnaireQuestion
 
 router = APIRouter(prefix="/api/repository", tags=["repository"])
 
@@ -25,19 +25,30 @@ def _serialize_question(question: QuestionnaireQuestion) -> dict:
 
 @router.get("/{job_listing_id}/questions", response_model=list[dict])
 def get_questions_for_listing(job_listing_id: int, db: Session = Depends(get_db)) -> list[dict]:
-    from sqlalchemy import or_
-
-    questions = (
+    # Global questions selected for this position via junction table
+    global_questions = (
         db.query(QuestionnaireQuestion)
+        .join(JobListingQuestion, JobListingQuestion.question_id == QuestionnaireQuestion.question_id)
         .filter(
-            or_(
-                QuestionnaireQuestion.job_listing_id == job_listing_id,
-                QuestionnaireQuestion.is_global.is_(True),
-            )
+            JobListingQuestion.job_listing_id == job_listing_id,
+            QuestionnaireQuestion.is_global == True,  # noqa: E712
         )
-        .order_by(QuestionnaireQuestion.is_global.desc(), QuestionnaireQuestion.sort_order.asc(), QuestionnaireQuestion.question_id.asc())
+        .order_by(JobListingQuestion.sequence_number)
         .all()
     )
+
+    # Position-specific questions
+    position_questions = (
+        db.query(QuestionnaireQuestion)
+        .filter(
+            QuestionnaireQuestion.job_listing_id == job_listing_id,
+            QuestionnaireQuestion.is_global == False,  # noqa: E712
+        )
+        .order_by(QuestionnaireQuestion.sort_order, QuestionnaireQuestion.question_id)
+        .all()
+    )
+
+    questions = global_questions + position_questions
     if not questions:
         return [{"prompt": q, "question_type_id": None} for q in FALLBACK_QUESTIONS]
     return [_serialize_question(q) for q in questions]

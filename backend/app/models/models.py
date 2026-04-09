@@ -41,7 +41,7 @@ class JobListing(Base):
     listing_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     code_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     listing_date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
-    listing_date_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    listing_date_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     position_title: Mapped[str] = mapped_column(String(128), nullable=False)
     job: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
@@ -53,6 +53,8 @@ class JobListing(Base):
     required_skills: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    nuworks_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    nuworks_position_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     listing_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     listing_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 

@@ -136,6 +136,7 @@ class JobListingAdminCreate(BaseModel):
     code_id: str  # normalized to uppercase, immutable after creation
     description: str = ""  # plain text; stored as {"text": "..."} in JSON col
     required_skills: str = ""
+    application_cycle_id: int | None = None
     target_start_date: datetime | None = None  # "listing_date_start" per SRS
     listing_date_end: datetime | None = None  # nullable; SRS doesn't require it
     nuworks_url: str | None = None
@@ -147,6 +148,7 @@ class JobListingAdminUpdate(BaseModel):
     position_title: str | None = None
     description: str | None = None
     required_skills: str | None = None
+    application_cycle_id: int | None = None
     target_start_date: datetime | None = None
     listing_date_end: datetime | None = None
     nuworks_url: str | None = None
@@ -160,6 +162,7 @@ class JobListingAdminRead(BaseModel):
     position_title: str
     description: str  # unwrapped from {"text": "..."}
     required_skills: str | None
+    application_cycle_id: int | None
     target_start_date: datetime | None
     listing_date_end: datetime | None
     nuworks_url: str | None

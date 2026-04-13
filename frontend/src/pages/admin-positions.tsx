@@ -5,9 +5,11 @@ import {
   type AdminJobListingRecord,
   type AdminJobListingCreatePayload,
   type AdminJobListingUpdatePayload,
+  type ApplicationCycleRecord,
   createAdminJobListing,
   createPositionQuestion,
   deactivateJobListing,
+  getAdminApplicationCycles,
   getAdminJobListing,
   getAdminJobListings,
   updateAdminJobListing,
@@ -18,6 +20,7 @@ type FormState = {
   position_title: string;
   code_id: string;
   description: string;
+  application_cycle_id: string;
 
   target_start_date: string;
   listing_date_end: string;
@@ -29,6 +32,7 @@ const emptyForm: FormState = {
   position_title: "",
   code_id: "",
   description: "",
+  application_cycle_id: "",
 
   target_start_date: "",
   listing_date_end: "",
@@ -46,9 +50,16 @@ function fromIsoDate(value: string | null | undefined): string {
   return value.slice(0, 10); // "YYYY-MM-DD" for <input type="date">
 }
 
+function toNullableInt(value: string): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function AdminPositionsPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
   const [positions, setPositions] = useState<AdminJobListingRecord[]>([]);
+  const [cycles, setCycles] = useState<ApplicationCycleRecord[]>([]);
   const [mode, setMode] = useState<"idle" | "create" | "edit">("idle");
   const [selected, setSelected] = useState<AdminJobListingRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -70,6 +81,17 @@ export function AdminPositionsPage() {
     })();
   }, [token]);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await getAdminApplicationCycles(token);
+        setCycles(data);
+      } catch {
+        setCycles([]);
+      }
+    })();
+  }, [token]);
+
   function selectPosition(pos: AdminJobListingRecord) {
     setSelected(pos);
     setMode("edit");
@@ -80,6 +102,7 @@ export function AdminPositionsPage() {
       position_title: pos.position_title,
       code_id: pos.code_id ?? "",
       description: pos.description,
+      application_cycle_id: pos.application_cycle_id ? String(pos.application_cycle_id) : "",
 
       target_start_date: fromIsoDate(pos.target_start_date),
       listing_date_end: fromIsoDate(pos.listing_date_end),
@@ -116,6 +139,7 @@ export function AdminPositionsPage() {
           position_title: form.position_title.trim(),
           code_id: form.code_id.trim().toUpperCase(),
           description: form.description.trim(),
+          application_cycle_id: toNullableInt(form.application_cycle_id),
 
           target_start_date: toIsoDate(form.target_start_date),
           listing_date_end: toIsoDate(form.listing_date_end),
@@ -137,6 +161,7 @@ export function AdminPositionsPage() {
         const payload: AdminJobListingUpdatePayload = {
           position_title: form.position_title.trim(),
           description: form.description.trim(),
+          application_cycle_id: toNullableInt(form.application_cycle_id),
 
           target_start_date: toIsoDate(form.target_start_date),
           listing_date_end: toIsoDate(form.listing_date_end),
@@ -295,6 +320,40 @@ export function AdminPositionsPage() {
                       className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2 text-sm"
                       placeholder="Describe the role..."
                     />
+                  </label>
+
+                  {/* Cycle */}
+                  <label className="block text-sm font-medium text-[#2d2d2d]">
+                    Cycle
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        value={form.application_cycle_id}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, application_cycle_id: e.target.value }))
+                        }
+                        className="w-full rounded border border-[#d0d0d0] px-3 py-2 text-sm"
+                      >
+                        <option value="">No cycle</option>
+                        {cycles.map((cycle) => (
+                          <option
+                            key={cycle.application_cycle_id}
+                            value={String(cycle.application_cycle_id)}
+                          >
+                            {cycle.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void 0}
+                        className="shrink-0 rounded border border-[#c7c7c7] bg-white px-3 py-2 text-sm text-[#2d2d2d] hover:bg-[#f0f0f0]"
+                      >
+                        Create New
+                      </button>
+                    </div>
+                    {cycles.length === 0 && (
+                      <span className="mt-1 block text-xs text-[#888]">No cycles available yet.</span>
+                    )}
                   </label>
 
                   {/* Dates */}

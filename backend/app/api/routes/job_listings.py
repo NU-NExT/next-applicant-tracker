@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.authn import ensure_admin_user, require_bearer_token
 from app.api.schemas import (
+    ApplicationCycleRead,
     GlobalQuestionBankRead,
     GlobalQuestionSelectionPayload,
     JobListingAdminCreate,
@@ -21,7 +22,14 @@ from app.api.schemas import (
 )
 from app.config import settings
 from app.db import get_db
-from app.models.models import ApplicationSubmission, JobListing, JobListingQuestion, QuestionnaireQuestion, QuestionType
+from app.models.models import (
+    ApplicationCycle,
+    ApplicationSubmission,
+    JobListing,
+    JobListingQuestion,
+    QuestionnaireQuestion,
+    QuestionType,
+)
 
 router = APIRouter(prefix="/api/job-listings", tags=["job-listings"])
 
@@ -53,6 +61,7 @@ def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
         position_title=listing.position_title,
         description=description_text,
         required_skills=listing.required_skills,
+        application_cycle_id=listing.application_cycle_id,
         target_start_date=listing.target_start_date,
         listing_date_end=listing.listing_date_end,
         nuworks_url=listing.nuworks_url,
@@ -123,6 +132,21 @@ def _get_question_or_404(listing_id: int, question_id: int, db: Session) -> Ques
     if q is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     return q
+
+
+def _validate_application_cycle_id(application_cycle_id: int | None, db: Session) -> None:
+    if application_cycle_id is None:
+        return
+    exists = (
+        db.query(ApplicationCycle.application_cycle_id)
+        .filter(ApplicationCycle.application_cycle_id == application_cycle_id)
+        .first()
+    )
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid application_cycle_id",
+        )
 
 
 @router.get("/admin/{listing_id}/questions", response_model=list[PositionQuestionRead])
@@ -361,6 +385,31 @@ def list_admin_job_listings(
     return [_build_admin_read(listing, db) for listing in listings]
 
 
+@router.get("/admin/application-cycles", response_model=list[ApplicationCycleRead])
+def list_application_cycles(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[ApplicationCycle]:
+    _assert_admin(authorization, db)
+    rows = (
+        db.query(
+            ApplicationCycle.application_cycle_id,
+            ApplicationCycle.name,
+            ApplicationCycle.slug,
+        )
+        .order_by(ApplicationCycle.name.asc())
+        .all()
+    )
+    return [
+        ApplicationCycleRead(
+            application_cycle_id=row.application_cycle_id,
+            name=row.name,
+            slug=row.slug,
+        )
+        for row in rows
+    ]
+
+
 @router.get("/admin/{job_listing_id}", response_model=JobListingAdminRead)
 def get_admin_job_listing(
     job_listing_id: int,
@@ -381,6 +430,7 @@ def create_admin_job_listing(
     db: Session = Depends(get_db),
 ) -> JobListingAdminRead:
     _assert_admin(authorization, db)
+    _validate_application_cycle_id(payload.application_cycle_id, db)
     code_id = _ensure_unique_code_id(db, payload.code_id)
     listing = JobListing(
         position_title=payload.position_title.strip(),
@@ -388,6 +438,7 @@ def create_admin_job_listing(
         code_id=code_id,
         description={"text": payload.description},
         required_skills=payload.required_skills or None,
+        application_cycle_id=payload.application_cycle_id,
         target_start_date=payload.target_start_date,
         listing_date_end=payload.listing_date_end,
         nuworks_url=payload.nuworks_url,
@@ -423,6 +474,8 @@ def patch_admin_job_listing(
     if listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
     updates = payload.model_dump(exclude_unset=True)
+    if "application_cycle_id" in updates:
+        _validate_application_cycle_id(updates["application_cycle_id"], db)
     if "position_title" in updates:
         title = updates.pop("position_title").strip()
         listing.position_title = title

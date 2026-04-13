@@ -564,6 +564,7 @@ export type AdminJobListingRecord = {
   position_title: string;
   description: string;
   required_skills: string | null;
+  application_cycle_id: number | null;
   target_start_date: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
@@ -580,6 +581,7 @@ export type AdminJobListingCreatePayload = {
   code_id: string;
   description: string;
   required_skills?: string;
+  application_cycle_id?: number | null;
   target_start_date: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
@@ -590,6 +592,24 @@ export type AdminJobListingCreatePayload = {
 export type AdminJobListingUpdatePayload = Partial<
   Omit<AdminJobListingCreatePayload, "code_id"> & { is_active: boolean }
 >;
+
+export type ApplicationCycleRecord = {
+  application_cycle_id: number;
+  name: string;
+  slug: string;
+};
+
+export async function getAdminApplicationCycles(
+  token: string
+): Promise<ApplicationCycleRecord[]> {
+  const response = await apiClient.get<ApplicationCycleRecord[]>(
+    "/api/job-listings/admin/application-cycles",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data;
+}
 
 export async function getAdminJobListings(
   token: string,

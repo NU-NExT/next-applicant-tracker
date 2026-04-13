@@ -521,6 +521,18 @@ export async function addCandidateReviewComment(
   return response.data;
 }
 
+export async function exportCandidateReviewsCsv(
+  accessToken: string,
+  filters: Record<string, string>
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>("/api/admin/review/export.csv", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: filters,
+    responseType: "blob",
+  });
+  return response.data;
+}
+
 export async function getFieldOptions(category?: string): Promise<FieldOptionRecord[]> {
   const response = await apiClient.get<FieldOptionRecord[]>("/api/admin/field-options", {
     params: category ? { category } : undefined,

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import {
   addCandidateReviewComment,
   addCandidateReviewScore,
+  exportCandidateReviewsCsv,
   getCandidateReviewDetail,
   searchCandidateReviews,
   type CandidateReviewDetail,
@@ -23,6 +24,8 @@ export function AdminReviewApplicationsPage() {
   const [newComment, setNewComment] = useState("");
   const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState(true);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [showExportToast, setShowExportToast] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({
     candidate_name: "",
@@ -90,6 +93,12 @@ export function AdminReviewApplicationsPage() {
     setNewComment("");
   }, [selectedSubmissionId]);
 
+  useEffect(() => {
+    if (!showExportToast) return;
+    const timer = window.setTimeout(() => setShowExportToast(false), 2200);
+    return () => window.clearTimeout(timer);
+  }, [showExportToast]);
+
   const runSearch = async () => {
     if (!token) return;
     setStatusMessage("");
@@ -132,11 +141,54 @@ export function AdminReviewApplicationsPage() {
     setSelectedSubmissionId(results[selectedIndex + 1].submission_id);
   };
 
+  const exportCsv = async () => {
+    if (!token) {
+      setStatusMessage("No active session found. Please sign in from /login first.");
+      return;
+    }
+    setIsExportingCsv(true);
+    setStatusMessage("");
+    try {
+      const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v.trim().length > 0));
+      const csvBlob = await exportCandidateReviewsCsv(token, cleanFilters);
+      const downloadUrl = window.URL.createObjectURL(csvBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "candidate-review-export.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setShowExportToast(true);
+    } catch {
+      setStatusMessage("Export failed.");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#ececec]">
+      {showExportToast ? (
+        <div className="fixed top-20 left-1/2 z-50 -translate-x-1/2 rounded-md bg-[#1f6f5f] px-4 py-2 text-sm font-medium text-white shadow-md">
+          CSV Exported!
+        </div>
+      ) : null}
       <Header />
       <main className="px-4 pt-24 pb-6">
         <section className="mx-auto rounded p-5">
+          <div className="mb-4">
+            <Button
+              type="button"
+              className="rounded-md bg-[#1f6f5f] px-4 py-2 text-sm text-white hover:bg-[#18574b] disabled:opacity-60"
+              onClick={() => {
+                void exportCsv();
+              }}
+              disabled={isExportingCsv}
+            >
+              {isExportingCsv ? "Exporting..." : "Export Applicants CSV"}
+            </Button>
+          </div>
           <div className="mb-4 flex items-center justify-between">
           
             <Drawer open={isSearchDrawerOpen} onOpenChange={setIsSearchDrawerOpen} direction="left">

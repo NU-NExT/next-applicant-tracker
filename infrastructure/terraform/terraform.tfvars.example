@@ -1,6 +1,11 @@
-project_name = "application-tracker"
+project_name = "next-gateway"
 environment  = "dev"
 aws_region   = "us-east-1"
+enable_route53 = true
+route53_create_zone = true
+route53_zone_name = "gateway.nunext.dev"
+route53_frontend_subdomain = ""
+route53_api_subdomain = "api"
 # Optional: set this to force a named AWS profile.
 # aws_profile = profile-here
 
@@ -9,13 +14,16 @@ postgres_user     = "postgres"
 postgres_password = "postgres"
 postgres_host     = "db"
 postgres_port     = "5432"
-postgres_db       = "next-ats-db"
+postgres_db       = "next-gateway-db"
 s3_endpoint_url   = "http://localstack:4566"
 
-# Cognito Hosted UI (Terraform appends a stable random suffix for uniqueness)
-cognito_domain_prefix = "next-ats"
+# Cognito Hosted UI / existing Cognito wiring
+cognito_domain_prefix = "next-gateway"
+# cognito_existing_user_pool_id  = "us-east-1_4aNQDGAQv"
+# cognito_existing_app_client_id = "42ua3s4dmoqpt8mm51tg259lru"
+# cognito_existing_domain_prefix = "next-gateway"
 cognito_callback_urls = ["http://localhost:3000/login"]
 cognito_logout_urls   = ["http://localhost:3000/login"]
 
 # For production, set this and keep environment = "prod"
-# database_url = "postgresql+psycopg2://postgres:postgres@db-endpoint:5432/next-ats-db"
+# database_url = "postgresql+psycopg2://postgres:postgres@db-endpoint:5432/next-gateway-db"

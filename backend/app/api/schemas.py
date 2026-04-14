@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -242,6 +243,32 @@ class ApplicationReviewScoreRead(BaseModel):
     score_value_id: int
     score: int | None = None
     application_review_score_created_at: datetime
+
+
+class ScoreLabel(str, Enum):
+    strong = "Strong"
+    potential = "Potential"
+    defer = "Defer"
+    deny = "Deny"
+
+
+class ApplicationScoreSubmit(BaseModel):
+    score_label: ScoreLabel
+
+
+class ApplicationScoreDetail(BaseModel):
+    application_review_score_id: int
+    application_submission_id: int
+    score_label: str
+    reviewer_name: str
+    reviewer_email: str
+    created_at: datetime
+
+
+class ScoreSummaryResponse(BaseModel):
+    total_reviews: int
+    score_counts: dict[str, int]
+    individual_scores: list[ApplicationScoreDetail]
 
 
 class ApplicationReviewCommentCreate(BaseModel):

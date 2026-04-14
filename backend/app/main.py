@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.admin_review import router as admin_review_router
+from app.api.routes.applications import router as applications_router
 from app.api.routes.admin_dashboard import router as admin_dashboard_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.field_options import router as field_options_router
@@ -35,6 +36,7 @@ app.include_router(repository_router)
 app.include_router(repository_requests_router)
 app.include_router(admin_dashboard_router)
 app.include_router(admin_review_router)
+app.include_router(applications_router)
 app.include_router(auth_router)
 app.include_router(field_options_router)
 app.include_router(profile_router)

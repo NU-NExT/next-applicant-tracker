@@ -80,11 +80,10 @@ QUESTION_TYPES = [
 ]
 
 SCORE_VALUES = [
-    {"value": 1, "label": "Poor"},
-    {"value": 2, "label": "Below Average"},
-    {"value": 3, "label": "Average"},
-    {"value": 4, "label": "Good"},
-    {"value": 5, "label": "Excellent"},
+    {"value": 1, "label": "Strong"},
+    {"value": 2, "label": "Potential"},
+    {"value": 3, "label": "Defer"},
+    {"value": 4, "label": "Deny"},
 ]
 
 APPLICATION_STATUSES = [

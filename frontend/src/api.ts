@@ -276,7 +276,10 @@ export type CandidateReviewDetail = {
   comments: ApplicationReviewCommentRecord[];
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
+const DEFAULT_API_BASE_URL =
+  APP_ENVIRONMENT === "production" ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim() || DEFAULT_API_BASE_URL;
 
 export const apiClient = axios.create({
   baseURL: API_BASE,

@@ -13,10 +13,13 @@ type HostedTokenResponse = {
 
 const STORAGE_PREFIX = "cognito_pkce_";
 
+const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
+const DEFAULT_REDIRECT_URI =
+  APP_ENVIRONMENT === "production" ? "https://gateway.nunext.dev/login" : "http://localhost:3000/login";
 const COGNITO_DOMAIN = (import.meta.env.VITE_COGNITO_DOMAIN ?? "").trim();
 const COGNITO_CLIENT_ID = (import.meta.env.VITE_COGNITO_CLIENT_ID ?? "").trim();
 const COGNITO_REDIRECT_URI =
-  (import.meta.env.VITE_COGNITO_REDIRECT_URI ?? "").trim() || `${window.location.origin}/login`;
+  (import.meta.env.VITE_COGNITO_REDIRECT_URI ?? "").trim() || DEFAULT_REDIRECT_URI;
 
 function base64UrlEncode(input: Uint8Array): string {
   let binary = "";

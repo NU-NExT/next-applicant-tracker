@@ -119,6 +119,9 @@ export type RepositoryRequestPayload = {
 
 export type AdminApplicationRow = {
   job: string;
+  listing_id?: number;
+  cycle_slug?: string | null;
+  position_slug?: string | null;
   date_posted?: string;
   date_end?: string;
   total_submissions?: number;
@@ -315,6 +318,12 @@ export type CandidateReviewDetail = {
   comments: ApplicationReviewCommentRecord[];
 };
 
+export type JobListingLookupRecord = {
+  listing_id: number;
+  listing_slug: string;
+  code_id?: string | null;
+};
+
 const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
 const IS_CLOUD_ENV = APP_ENVIRONMENT === "production" || APP_ENVIRONMENT === "staging";
 const DEFAULT_API_BASE_URL = IS_CLOUD_ENV ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
@@ -367,20 +376,20 @@ export async function getPublicJobListingByCycleTitle(
   return response.data;
 }
 
-export async function getJobListingBySlug(listingSlug: string): Promise<Record<string, unknown>> {
-  const response = await apiClient.get<Record<string, unknown>>(`/api/job-listings/by-slug/${listingSlug}`);
+export async function getJobListingBySlug(listingSlug: string): Promise<JobListingLookupRecord> {
+  const response = await apiClient.get<JobListingLookupRecord>(`/api/job-listings/by-slug/${listingSlug}`);
   return response.data;
 }
 
-export async function getJobListingByCycleTitle(cycle: string, title: string): Promise<Record<string, unknown>> {
-  const response = await apiClient.get<Record<string, unknown>>("/api/job-listings/by-cycle-title", {
+export async function getJobListingByCycleTitle(cycle: string, title: string): Promise<JobListingLookupRecord> {
+  const response = await apiClient.get<JobListingLookupRecord>("/api/job-listings/by-cycle-title", {
     params: { cycle, title },
   });
   return response.data;
 }
 
-export async function getJobListingByPositionCode(positionCode: string): Promise<Record<string, unknown>> {
-  const response = await apiClient.get<Record<string, unknown>>(`/api/job-listings/by-position-code/${positionCode}`);
+export async function getJobListingByPositionCode(positionCode: string): Promise<JobListingLookupRecord> {
+  const response = await apiClient.get<JobListingLookupRecord>(`/api/job-listings/by-position-code/${positionCode}`);
   return response.data;
 }
 

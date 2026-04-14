@@ -813,16 +813,28 @@ def get_job_listing_by_cycle_and_title(
     normalized_title_key = _slugify(title)
     if not normalized_title_key:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid title")
-    candidates = (
-        db.query(JobListing)
-        .join(ApplicationCycle, JobListing.application_cycle_id == ApplicationCycle.application_cycle_id)
-        .filter(
-            JobListing.is_active == True,  # noqa: E712
-            ApplicationCycle.slug == normalized_cycle,
+    if normalized_cycle == "uncategorized":
+        candidates = (
+            db.query(JobListing)
+            .filter(
+                JobListing.is_active == True,  # noqa: E712
+                JobListing.application_cycle_id.is_(None),
+            )
+            .all()
         )
-        .all()
-    )
-    job_listing = next((row for row in candidates if _slugify(row.position_title) == normalized_title_key), None)
+    else:
+        candidates = (
+            db.query(JobListing)
+            .join(ApplicationCycle, JobListing.application_cycle_id == ApplicationCycle.application_cycle_id)
+            .filter(
+                JobListing.is_active == True,  # noqa: E712
+                ApplicationCycle.slug == normalized_cycle,
+            )
+            .all()
+        )
+    job_listing = next((row for row in candidates if row.listing_slug == normalized_title_key), None)
+    if job_listing is None:
+        job_listing = next((row for row in candidates if _slugify(row.position_title) == normalized_title_key), None)
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
     return {

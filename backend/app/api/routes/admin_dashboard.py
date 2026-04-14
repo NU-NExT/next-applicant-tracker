@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -6,14 +7,23 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import DemographicsSummary
 from app.db import get_db
-from app.models.models import ApplicationSubmission, JobListing
+from app.models.models import ApplicationCycle, ApplicationSubmission, JobListing
 
 router = APIRouter(prefix="/api/admin", tags=["admin-dashboard"])
+_SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
 
-@router.get("/open-applications", response_model=list[dict[str, str | int]])
-def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str | int]]:
+def _slugify(value: str) -> str:
+    return _SLUG_NON_ALNUM_RE.sub("-", value.strip().lower()).strip("-")
+
+
+@router.get("/open-applications", response_model=list[dict[str, str | int | None]])
+def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str | int | None]]:
     now = datetime.now(timezone.utc)
+    cycle_slug_map = {
+        row.application_cycle_id: row.slug
+        for row in db.query(ApplicationCycle.application_cycle_id, ApplicationCycle.slug).all()
+    }
     listings = (
         db.query(JobListing)
         .filter(
@@ -25,7 +35,7 @@ def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str |
         .all()
     )
 
-    results: list[dict[str, str | int]] = []
+    results: list[dict[str, str | int | None]] = []
     for listing in listings:
         total_submissions = (
             db.query(ApplicationSubmission)
@@ -35,6 +45,9 @@ def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str |
         results.append(
             {
                 "job": listing.job,
+                "listing_id": listing.listing_id,
+                "cycle_slug": cycle_slug_map.get(listing.application_cycle_id) if listing.application_cycle_id is not None else "uncategorized",
+                "position_slug": listing.listing_slug or _slugify(listing.position_title or listing.job),
                 "date_posted": listing.listing_date_posted.date().isoformat(),
                 "date_end": listing.listing_date_end.date().isoformat() if listing.listing_date_end else "",
                 "total_submissions": total_submissions,
@@ -43,9 +56,13 @@ def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str |
     return results
 
 
-@router.get("/past-applications", response_model=list[dict[str, str]])
-def get_past_applications(db: Session = Depends(get_db)) -> list[dict[str, str]]:
+@router.get("/past-applications", response_model=list[dict[str, str | int | None]])
+def get_past_applications(db: Session = Depends(get_db)) -> list[dict[str, str | int | None]]:
     now = datetime.now(timezone.utc)
+    cycle_slug_map = {
+        row.application_cycle_id: row.slug
+        for row in db.query(ApplicationCycle.application_cycle_id, ApplicationCycle.slug).all()
+    }
     listings = (
         db.query(JobListing)
         .filter(
@@ -58,11 +75,14 @@ def get_past_applications(db: Session = Depends(get_db)) -> list[dict[str, str]]
         .all()
     )
 
-    results: list[dict[str, str]] = []
+    results: list[dict[str, str | int | None]] = []
     for listing in listings:
         results.append(
             {
                 "job": listing.job,
+                "listing_id": listing.listing_id,
+                "cycle_slug": cycle_slug_map.get(listing.application_cycle_id) if listing.application_cycle_id is not None else "uncategorized",
+                "position_slug": listing.listing_slug or _slugify(listing.position_title or listing.job),
                 "date_posted": listing.listing_date_posted.date().isoformat(),
                 "date_end": listing.listing_date_end.date().isoformat() if listing.listing_date_end else "",
             }

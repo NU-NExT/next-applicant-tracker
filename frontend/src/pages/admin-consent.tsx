@@ -3,12 +3,22 @@ import { createConsentVersion, getLatestConsent, type ConsentVersionRecord } fro
 import { Header } from "../components/header";
 
 export function AdminConsentPage() {
+  const token = localStorage.getItem("auth_access_token") ?? "";
+  const isAdmin = localStorage.getItem("auth_is_admin") === "true";
+
+  useEffect(() => {
+    if (!isAdmin) {
+      window.location.href = "/admin-dashboard";
+    }
+  }, [isAdmin]);
+
   const [current, setCurrent] = useState<ConsentVersionRecord | null>(null);
   const [newText, setNewText] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
+    if (!isAdmin) return;
     void (async () => {
       try {
         const record = await getLatestConsent();
@@ -17,14 +27,14 @@ export function AdminConsentPage() {
         // No consent version exists yet
       }
     })();
-  }, []);
+  }, [isAdmin]);
 
   const handleSave = async () => {
     if (!newText.trim()) return;
     setSaving(true);
     setStatus("");
     try {
-      const record = await createConsentVersion(newText.trim());
+      const record = await createConsentVersion(newText.trim(), token);
       setCurrent(record);
       setNewText("");
       setStatus("Consent text saved.");
@@ -39,7 +49,15 @@ export function AdminConsentPage() {
     <div className="min-h-screen bg-[#ececec]">
       <Header />
       <main className="mx-auto max-w-[800px] px-4 pb-6 pt-24 space-y-8">
-        <h1 className="text-4xl font-medium text-[#1f1f1f]">Consent Text</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-4xl font-medium text-[#1f1f1f]">Consent Text</h1>
+          <a
+            href="/admin-dashboard"
+            className="rounded-md bg-[#1f6f5f] px-4 py-2 text-sm text-white no-underline"
+          >
+            ← Back to Dashboard
+          </a>
+        </div>
 
         {current && (
           <section className="rounded-md bg-white p-6 shadow-sm space-y-2">

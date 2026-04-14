@@ -567,8 +567,12 @@ export async function getLatestConsent(): Promise<ConsentVersionRecord> {
   return response.data;
 }
 
-export async function createConsentVersion(consentText: string): Promise<ConsentVersionRecord> {
-  const response = await apiClient.post<ConsentVersionRecord>("/api/consent/", { consent_text: consentText });
+export async function createConsentVersion(consentText: string, accessToken: string): Promise<ConsentVersionRecord> {
+  const response = await apiClient.post<ConsentVersionRecord>(
+    "/api/consent/",
+    { consent_text: consentText },
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
   return response.data;
 }
 
@@ -592,7 +596,10 @@ export async function recordApplicationConsent(
     "/api/consent/application-consent",
     { job_listing_id: jobListingId, consent_text: consentText, application_submission_id: applicationSubmissionId ?? null },
     { headers: { Authorization: `Bearer ${accessToken}` } },
-    
+  );
+  return response.data;
+}
+
 // ── Admin position management ─────────────────────────────────────────────-
 export type AdminJobListingRecord = {
   listing_id: number;
@@ -680,6 +687,10 @@ export async function deactivateApplicationConsent(
     `/api/consent/application-consent/${consentId}/deactivate`,
     {},
     { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  return response.data;
+}
+
 export async function deactivateJobListing(
   token: string,
   id: number

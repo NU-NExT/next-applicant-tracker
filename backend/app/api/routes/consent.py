@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.authn import get_or_create_user_from_access_token, require_bearer_token
+from app.api.authn import ensure_admin_user, get_or_create_user_from_access_token, require_bearer_token
 from app.db import get_db
 from app.models.models import ApplicationConsent, ConsentVersion
 
@@ -56,7 +56,13 @@ def get_latest_consent(db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=ConsentVersionRead, status_code=status.HTTP_201_CREATED)
-def create_consent_version(payload: ConsentVersionCreate, db: Session = Depends(get_db)):
+def create_consent_version(
+    payload: ConsentVersionCreate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    token = require_bearer_token(authorization)
+    ensure_admin_user(db, token)
     record = ConsentVersion(
         consent_text=payload.consent_text,
         consent_version_created_at=datetime.now(tz=timezone.utc),

@@ -98,6 +98,19 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
+        <section className="mt-5 border border-[#c7c7c7] bg-[#d8d8d8] p-4">
+          <h2 className="border-b border-[#b5b5b5] pb-1 text-3xl text-[#2d2d2d]">Consent Management</h2>
+          <div className="mt-4">
+            <p className="mb-3 text-[#2d2d2d]">View or update the consent text shown to applicants during the application process.</p>
+            <a
+              href="/admin/consent"
+              className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
+            >
+              Manage Consent Text
+            </a>
+          </div>
+        </section>
+
         <section className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="border border-[#c7c7c7] bg-[#d8d8d8] p-4">
             <h2 className="border-b border-[#b5b5b5] pb-1 text-2xl text-[#2d2d2d]">Create ADMIN Account</h2>

@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import func
@@ -499,7 +500,7 @@ def create_admin_job_listing(
         required_skills=payload.required_skills or None,
         application_cycle_id=payload.application_cycle_id,
         target_start_date=payload.target_start_date,
-        listing_date_posted=payload.listing_date_posted,
+        listing_date_posted=payload.listing_date_posted or datetime.now(timezone.utc),
         listing_date_end=payload.listing_date_end,
         nuworks_url=payload.nuworks_url,
         nuworks_position_id=payload.nuworks_position_id,

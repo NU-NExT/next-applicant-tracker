@@ -82,11 +82,10 @@ QUESTION_TYPES = [
 ]
 
 SCORE_VALUES = [
-    {"value": 1, "label": "Poor"},
-    {"value": 2, "label": "Below Average"},
-    {"value": 3, "label": "Average"},
-    {"value": 4, "label": "Good"},
-    {"value": 5, "label": "Excellent"},
+    {"value": 1, "label": "Strong"},
+    {"value": 2, "label": "Potential"},
+    {"value": 3, "label": "Defer"},
+    {"value": 4, "label": "Deny"},
 ]
 
 APPLICATION_STATUSES = [
@@ -390,6 +389,9 @@ def seed_reference_data(db: Session) -> dict[str, int]:
         existing = db.query(ScoreValue).filter_by(value=sv["value"]).first()
         if not existing:
             db.add(ScoreValue(value=sv["value"], label=sv["label"]))
+        elif existing.label != sv["label"]:
+            existing.label = sv["label"]
+            db.add(existing)
     db.flush()
 
     print("  Seeding application statuses …")

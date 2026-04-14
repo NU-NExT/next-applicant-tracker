@@ -134,6 +134,7 @@ export function AdminPositionsPage() {
           application_cycle_id: toNullableInt(form.application_cycle_id),
 
           target_start_date: toIsoDate(form.target_start_date),
+          listing_date_posted: new Date().toISOString(),
           listing_date_end: toIsoDate(form.listing_date_end),
           nuworks_url: form.nuworks_url.trim() || null,
           nuworks_position_id: form.nuworks_position_id.trim() || null,

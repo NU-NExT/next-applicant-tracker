@@ -25,6 +25,7 @@ export type JobListingRecord = {
   id: number;
   code_id?: string | null;
   date_created: string;
+  date_posted?: string | null;
   date_end: string;
   position_title?: string;
   position_code?: string;
@@ -54,6 +55,7 @@ export type JobListingRecord = {
 
 export type JobListingCreatePayload = {
   date_created: string;
+  date_posted?: string | null;
   date_end: string;
   code_id?: string;
   position_title?: string;
@@ -106,9 +108,8 @@ export type RepositoryRequestPayload = {
 
 export type AdminApplicationRow = {
   job: string;
-  status: string;
-  date_opened?: string;
-  date_closed?: string;
+  date_posted?: string;
+  date_end?: string;
   total_submissions?: number;
 };
 
@@ -326,6 +327,11 @@ export async function getJobDataById(jobId: number): Promise<JobDataRecord> {
 
 export async function getJobListings(): Promise<JobListingRecord[]> {
   const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
+  return response.data;
+}
+
+export async function getJobListing(jobListingId: number): Promise<JobListingRecord> {
+  const response = await apiClient.get<JobListingRecord>(`/api/job-listings/${jobListingId}`);
   return response.data;
 }
 
@@ -630,6 +636,7 @@ export type AdminJobListingRecord = {
   description: string;
   required_skills: string | null;
   target_start_date: string | null;
+  listing_date_posted: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
   nuworks_position_id: string | null;
@@ -646,6 +653,7 @@ export type AdminJobListingCreatePayload = {
   description: string;
   required_skills?: string;
   target_start_date: string | null;
+  listing_date_posted?: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
   nuworks_position_id: string | null;

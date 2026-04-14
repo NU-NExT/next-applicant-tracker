@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { AdminApplicantStatsPage } from "./pages/admin-applicant-stats";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminEditJobPostPage } from "./pages/admin-edit-job-post";
 import { AdminManageAccountsPage } from "./pages/admin-manage-accounts";
@@ -50,10 +49,6 @@ export function App() {
 
   if (path === "/admin-dashboard") {
     return <AdminDashboardPage />;
-  }
-
-  if (path === "/admin/applicant-stats") {
-    return <AdminApplicantStatsPage />;
   }
 
   if (path === "/admin/edit-job-post") {
@@ -128,9 +123,6 @@ export function App() {
         </li>
         <li>
           <a href="/admin-dashboard">/admin-dashboard</a>
-        </li>
-        <li>
-          <a href="/admin/applicant-stats">/admin/applicant-stats</a>
         </li>
         <li>
           <a href="/admin/edit-job-post">/admin/edit-job-post</a>

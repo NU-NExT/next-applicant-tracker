@@ -59,6 +59,16 @@ export function App() {
     return <AdminReviewApplicationsPage />;
   }
 
+  const adminReviewScopedMatch = path.match(/^\/admin\/review-applications\/([^/]+)\/([^/]+)$/);
+  if (adminReviewScopedMatch) {
+    return (
+      <AdminReviewApplicationsPage
+        cycleSlug={adminReviewScopedMatch[1]}
+        positionTitleSlug={adminReviewScopedMatch[2]}
+      />
+    );
+  }
+
   if (path === "/admin/manage-accounts") {
     return <AdminManageAccountsPage />;
   }
@@ -79,9 +89,30 @@ export function App() {
     return <AuthChooseAccountPage />;
   }
 
+  if (path === "/jobs") {
+    const cycleSlug = searchParams.get("cycle");
+    const positionTitle = searchParams.get("title");
+    return <JobDetailPage cycleSlug={cycleSlug ?? undefined} positionTitle={positionTitle ?? undefined} />;
+  }
+
   if (path === "/apply") {
+    const cycleSlug = searchParams.get("cycle");
+    const positionTitle = searchParams.get("title");
+    if (cycleSlug && positionTitle) {
+      return <ApplicationWizardPage cycleSlug={cycleSlug} positionTitle={positionTitle} />;
+    }
     const positionCode = searchParams.get("position");
     return <ApplicationWizardPage positionCode={positionCode ?? undefined} />;
+  }
+
+  const applyCycleTitleMatch = path.match(/^\/apply\/([^/]+)\/([^/]+)$/);
+  if (applyCycleTitleMatch) {
+    return <ApplicationWizardPage cycleSlug={applyCycleTitleMatch[1]} positionTitle={applyCycleTitleMatch[2]} />;
+  }
+
+  const applySlugMatch = path.match(/^\/apply\/([^/]+)$/);
+  if (applySlugMatch) {
+    return <ApplicationWizardPage listingSlug={applySlugMatch[1]} />;
   }
 
   if (path === "/profile") {
@@ -99,7 +130,16 @@ export function App() {
 
   const jobApplyMatch = path.match(/^\/jobs\/([^/]+)\/apply$/);
   if (jobApplyMatch) {
-    return <ApplicationWizardPage jobId={jobApplyMatch[1]} />;
+    const rawIdentifier = jobApplyMatch[1];
+    const isNumericIdentifier = /^\d+$/.test(rawIdentifier);
+    return isNumericIdentifier
+      ? <ApplicationWizardPage jobId={rawIdentifier} />
+      : <ApplicationWizardPage listingSlug={rawIdentifier} />;
+  }
+
+  const jobCycleTitleMatch = path.match(/^\/jobs\/([^/]+)\/([^/]+)$/);
+  if (jobCycleTitleMatch) {
+    return <JobDetailPage cycleSlug={jobCycleTitleMatch[1]} positionTitle={jobCycleTitleMatch[2]} />;
   }
 
   const jobDetailMatch = path.match(/^\/jobs\/([^/]+)$/);
@@ -143,13 +183,13 @@ export function App() {
           <a href="/auth/choose-account">/auth/choose-account</a>
         </li>
         <li>
-          <a href="/jobs/1">/jobs/1</a>
+          <a href="/jobs/fall-2026/software-engineer">/jobs/fall-2026/software-engineer</a>
         </li>
         <li>
           <a href="/jobs/1/login">/jobs/1/login</a>
         </li>
         <li>
-          <a href="/jobs/1/apply">/jobs/1/apply</a>
+          <a href="/apply/fall-2026/software-engineer">/apply/fall-2026/software-engineer</a>
         </li>
       </ul>
     </main>

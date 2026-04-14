@@ -137,9 +137,9 @@ class GlobalQuestionSelectionPayload(BaseModel):
 
 class JobListingAdminCreate(BaseModel):
     position_title: str
-    code_id: str  # normalized to uppercase, immutable after creation
     description: str = ""  # plain text; stored as {"text": "..."} in JSON col
     required_skills: str = ""
+    application_cycle_id: int | None = None
     target_start_date: datetime | None = None  # "listing_date_start" per SRS
     listing_date_posted: datetime | None = None
     listing_date_end: datetime | None = None  # nullable; SRS doesn't require it
@@ -152,6 +152,7 @@ class JobListingAdminUpdate(BaseModel):
     position_title: str | None = None
     description: str | None = None
     required_skills: str | None = None
+    application_cycle_id: int | None = None
     target_start_date: datetime | None = None
     listing_date_posted: datetime | None = None
     listing_date_end: datetime | None = None
@@ -162,10 +163,12 @@ class JobListingAdminUpdate(BaseModel):
 
 class JobListingAdminRead(BaseModel):
     listing_id: int
+    listing_slug: str
     code_id: str | None
     position_title: str
     description: str  # unwrapped from {"text": "..."}
     required_skills: str | None
+    application_cycle_id: int | None
     target_start_date: datetime | None
     listing_date_posted: datetime | None
     listing_date_end: datetime | None
@@ -173,9 +176,23 @@ class JobListingAdminRead(BaseModel):
     nuworks_position_id: str | None
     is_active: bool
     listing_date_created: datetime
-    intake_url: str  # f"{settings.frontend_url}/apply?position={code_id}"
+    intake_url: str  # f"{settings.frontend_url}/apply/{listing_slug}"
     application_count: int = 0
     question_count: int = 0
+
+
+class PublicJobListingSummary(BaseModel):
+    listing_id: int
+    listing_slug: str
+    cycle_slug: str | None = None
+    position_title: str
+    description: str
+    target_start_date: datetime | None = None
+
+
+class PublicJobListingDetail(PublicJobListingSummary):
+    listing_date_end: datetime | None = None
+    required_skills: str | None = None
 
 
 class PositionQuestionCreate(BaseModel):

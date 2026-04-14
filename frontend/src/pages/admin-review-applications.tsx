@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 import {
   addCandidateReviewComment,
   exportCandidateReviewsCsv,
   getCandidateReviewDetail,
+  getJobListingByCycleTitle,
   searchCandidateReviews,
   type CandidateReviewDetail,
   type CandidateReviewSearchRow,
@@ -15,8 +16,17 @@ import { Button } from "../components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "../components/ui/drawer";
 import { ChevronsUpDownIcon } from "../components/ui/lucide-chevrons-up-down";
 
-export function AdminReviewApplicationsPage() {
+type AdminReviewApplicationsPageProps = {
+  cycleSlug?: string;
+  positionTitleSlug?: string;
+};
+
+export function AdminReviewApplicationsPage({ cycleSlug, positionTitleSlug }: AdminReviewApplicationsPageProps) {
   const token = localStorage.getItem("auth_access_token") ?? "";
+  const normalizedCycleSlug = (cycleSlug ?? "").trim().toLowerCase();
+  const normalizedPositionTitleSlug = (positionTitleSlug ?? "").trim().toLowerCase();
+  const isScopedRoute = normalizedCycleSlug.length > 0 && normalizedPositionTitleSlug.length > 0;
+  const scopeLabel = `${normalizedCycleSlug}/${normalizedPositionTitleSlug}`;
   const [allResults, setAllResults] = useState<CandidateReviewSearchRow[]>([]);
   const [results, setResults] = useState<CandidateReviewSearchRow[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
@@ -32,6 +42,9 @@ export function AdminReviewApplicationsPage() {
     candidate_name: "",
     coop_number: "",
   });
+  const [scopedListingId, setScopedListingId] = useState<number | null>(null);
+  const [isScopeLoading, setIsScopeLoading] = useState(false);
+  const [isScopeInvalid, setIsScopeInvalid] = useState(false);
 
   const selectedRow = useMemo(
     () => results.find((row) => row.submission_id === selectedSubmissionId) ?? null,
@@ -43,6 +56,54 @@ export function AdminReviewApplicationsPage() {
   );
 
   useEffect(() => {
+    if (!isScopedRoute) {
+      setScopedListingId(null);
+      setIsScopeLoading(false);
+      setIsScopeInvalid(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsScopeLoading(true);
+    setIsScopeInvalid(false);
+    setScopedListingId(null);
+
+    void (async () => {
+      try {
+        const listing = await getJobListingByCycleTitle(normalizedCycleSlug, normalizedPositionTitleSlug);
+        if (cancelled) return;
+        const listingId = Number(listing.listing_id);
+        if (Number.isInteger(listingId) && listingId > 0) {
+          setScopedListingId(listingId);
+        } else {
+          setIsScopeInvalid(true);
+        }
+      } catch {
+        if (cancelled) return;
+        setIsScopeInvalid(true);
+      } finally {
+        if (cancelled) return;
+        setIsScopeLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isScopedRoute, normalizedCycleSlug, normalizedPositionTitleSlug]);
+
+  const withBaseFilters = useCallback(
+    (source: Record<string, string>) => {
+      const clean = Object.fromEntries(Object.entries(source).filter(([, v]) => v.trim().length > 0));
+      if (isScopedRoute && scopedListingId) {
+        return { ...clean, job_listing_id: String(scopedListingId) };
+      }
+      return clean;
+    },
+    [isScopedRoute, scopedListingId]
+  );
+
+  useEffect(() => {
     if (!token) {
       setStatusMessage("No active session found. Please sign in from /login first.");
       setResults([]);
@@ -50,21 +111,46 @@ export function AdminReviewApplicationsPage() {
       setSelectedSubmissionId(null);
       return;
     }
+
+    if (isScopedRoute && isScopeLoading) {
+      setStatusMessage("Resolving role scope...");
+      setResults([]);
+      setAllResults([]);
+      setSelectedSubmissionId(null);
+      return;
+    }
+
+    if (isScopedRoute && isScopeInvalid) {
+      setStatusMessage("No role found for this cycle/job URL.");
+      setResults([]);
+      setAllResults([]);
+      setSelectedSubmissionId(null);
+      return;
+    }
+
+    if (isScopedRoute && !scopedListingId) {
+      return;
+    }
+
     void (async () => {
       try {
-        const rows = await searchCandidateReviews(token, {});
+        const rows = await searchCandidateReviews(token, withBaseFilters({}));
         setAllResults(rows);
         setResults(rows);
-        setStatusMessage("");
-        if (rows.length > 0) {
-          setSelectedSubmissionId(rows[0].submission_id);
-        }
+        setSelectedSubmissionId(rows[0]?.submission_id ?? null);
+        setStatusMessage(
+          rows.length === 0
+            ? (isScopedRoute ? "No applicants found for this role yet." : "No applicants available.")
+            : ""
+        );
       } catch {
         setResults([]);
+        setAllResults([]);
+        setSelectedSubmissionId(null);
         setStatusMessage("Could not load applicants. Ensure you are signed in with an admin account.");
       }
     })();
-  }, [token]);
+  }, [token, isScopedRoute, isScopeLoading, isScopeInvalid, scopedListingId, withBaseFilters]);
 
   useEffect(() => {
     if (!token || !selectedSubmissionId) {
@@ -95,25 +181,46 @@ export function AdminReviewApplicationsPage() {
 
   const runSearch = async () => {
     if (!token) return;
+    if (isScopedRoute && (isScopeLoading || isScopeInvalid || !scopedListingId)) {
+      setStatusMessage(isScopeLoading ? "Resolving role scope..." : "No role found for this cycle/job URL.");
+      return;
+    }
     setStatusMessage("");
     try {
-      const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v.trim().length > 0));
-      const rows = await searchCandidateReviews(token, cleanFilters);
+      const rows = await searchCandidateReviews(token, withBaseFilters(filters));
       setResults(rows);
       setSelectedSubmissionId(rows[0]?.submission_id ?? null);
+      if (rows.length === 0) {
+        setStatusMessage(isScopedRoute ? "No applicants found for this role." : "No applicants matched your search.");
+      }
     } catch {
       setStatusMessage("Search failed.");
     }
   };
 
   const resetToAllApplicants = () => {
+    if (isScopedRoute && isScopeInvalid) {
+      setFilters({
+        candidate_name: "",
+        coop_number: "",
+      });
+      setResults([]);
+      setAllResults([]);
+      setSelectedSubmissionId(null);
+      setStatusMessage("No role found for this cycle/job URL.");
+      return;
+    }
     setFilters({
       candidate_name: "",
       coop_number: "",
     });
     setResults(allResults);
     setSelectedSubmissionId(allResults[0]?.submission_id ?? null);
-    setStatusMessage("");
+    setStatusMessage(
+      allResults.length === 0
+        ? (isScopedRoute ? "No applicants found for this role yet." : "No applicants available.")
+        : ""
+    );
   };
 
   const estDateTimeFormatter = useMemo(
@@ -166,11 +273,14 @@ export function AdminReviewApplicationsPage() {
       setStatusMessage("No active session found. Please sign in from /login first.");
       return;
     }
+    if (isScopedRoute && (isScopeLoading || isScopeInvalid || !scopedListingId)) {
+      setStatusMessage(isScopeLoading ? "Resolving role scope..." : "No role found for this cycle/job URL.");
+      return;
+    }
     setIsExportingCsv(true);
     setStatusMessage("");
     try {
-      const cleanFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v.trim().length > 0));
-      const csvBlob = await exportCandidateReviewsCsv(token, cleanFilters);
+      const csvBlob = await exportCandidateReviewsCsv(token, withBaseFilters(filters));
       const downloadUrl = window.URL.createObjectURL(csvBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -197,6 +307,17 @@ export function AdminReviewApplicationsPage() {
       <Header />
       <main className="px-4 pt-24 pb-6">
         <section className="mx-auto rounded p-5">
+          {isScopedRoute ? (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-[#c7c7c7] bg-white px-3 py-2">
+              <p className="text-sm text-[#2d2d2d]">
+                Scoped to <span className="font-semibold">{scopeLabel}</span>
+                {isScopeLoading ? " (resolving...)" : ""}
+              </p>
+              <a href="/admin/review-applications" className="text-sm text-[#1f6f5f] underline">
+                View all roles
+              </a>
+            </div>
+          ) : null}
           <div className="mb-4 flex items-center justify-between gap-3">
             <Drawer open={isSearchDrawerOpen} onOpenChange={setIsSearchDrawerOpen} direction="left">
               <DrawerTrigger asChild>
@@ -329,10 +450,10 @@ export function AdminReviewApplicationsPage() {
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
                     <div className="flex-1 rounded border border-[#d5d5d5] bg-[#f7f7f7] px-4 py-3">
                       <h2 className="text-2xl text-center font-semibold text-[#1f1f1f]">
-                        {selectedRow?.candidate_name ?? detail.submission.applicant_name} 
+                        {selectedRow?.candidate_name ?? detail.submission.applicant_name}
                       </h2>
                       <p className="text-sm text-center text-[#3f3f3f]">
-                        {detail.submission.applicant_email} | {detail.position_title} ({detail.position_code}) | Status:{" "}
+                        {detail.submission.applicant_email} | {detail.position_title} ({detail.position_slug ?? detail.position_code ?? "n/a"}) | Status:{" "}
                         {detail.submission.status}
                       </p>
                     </div>

@@ -64,7 +64,7 @@ export function RepositoryRequestPage({ jobId }: RepositoryRequestPageProps) {
       const profile = await getMyProfile(accessToken);
       await createRepositoryRequest({
         job_listing_id: isNumericJobId ? numericJobId : undefined,
-        position_code: isNumericJobId ? undefined : normalizedJobId.toUpperCase(),
+        job_listing_slug: isNumericJobId ? undefined : normalizedJobId.toLowerCase(),
         applicant_name: `${profile.first_name} ${profile.last_name}`.trim(),
         applicant_email: profile.email,
         resume_s3_key: resumeKey || undefined,

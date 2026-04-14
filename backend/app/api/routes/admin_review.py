@@ -59,6 +59,7 @@ def _within_date_range(raw_value: str | None, start: str | None, end: str | None
 
 def _build_candidate_review_rows(
     db: Session,
+    job_listing_id: int | None = None,
     candidate_name: str | None = None,
     northeastern_email: str | None = None,
     major: str | None = None,
@@ -74,6 +75,8 @@ def _build_candidate_review_rows(
     submissions = db.query(ApplicationSubmission).order_by(ApplicationSubmission.application_submission_created_at.desc()).all()
     rows: list[CandidateReviewSearchRow] = []
     for submission in submissions:
+        if job_listing_id is not None and submission.job_listing_id != job_listing_id:
+            continue
         position_row = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
         if position_row and position_row.listing_date_posted is None:
             continue
@@ -132,6 +135,7 @@ def _build_candidate_review_rows(
 
 @router.get("/search", response_model=list[CandidateReviewSearchRow])
 def search_candidates(
+    job_listing_id: int | None = None,
     candidate_name: str | None = None,
     northeastern_email: str | None = None,
     major: str | None = None,
@@ -150,6 +154,7 @@ def search_candidates(
     ensure_admin_user(db, token)
     return _build_candidate_review_rows(
         db=db,
+        job_listing_id=job_listing_id,
         candidate_name=candidate_name,
         northeastern_email=northeastern_email,
         major=major,
@@ -166,6 +171,7 @@ def search_candidates(
 
 @router.get("/export.csv")
 def export_candidate_csv(
+    job_listing_id: int | None = None,
     candidate_name: str | None = None,
     northeastern_email: str | None = None,
     major: str | None = None,
@@ -185,6 +191,7 @@ def export_candidate_csv(
 
     rows = _build_candidate_review_rows(
         db=db,
+        job_listing_id=job_listing_id,
         candidate_name=candidate_name,
         northeastern_email=northeastern_email,
         major=major,
@@ -324,6 +331,7 @@ def get_review_detail(
     return CandidateReviewDetail(
         submission=submission,
         position_title=position.position_title,
+        position_slug=position.listing_slug,
         position_code=position.code_id,
         global_profile_fields=_get_global_fields(submission.profile_snapshot_json or {}),
         position_question_answers=answers,

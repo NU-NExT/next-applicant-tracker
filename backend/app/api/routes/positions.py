@@ -30,6 +30,15 @@ def get_position_by_code(position_code: str, db: Session = Depends(get_db)) -> J
     return position
 
 
+@router.get("/slug/{listing_slug}", response_model=JobListingRead)
+def get_position_by_slug(listing_slug: str, db: Session = Depends(get_db)) -> JobListing:
+    slug = listing_slug.strip().lower()
+    position = db.query(JobListing).filter(JobListing.listing_slug == slug).first()
+    if position is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    return position
+
+
 @router.post("", response_model=JobListingRead, status_code=status.HTTP_201_CREATED)
 def create_position(payload: JobListingCreate, db: Session = Depends(get_db)) -> JobListing:
     from app.api.routes.job_listings import create_job_listing

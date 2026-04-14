@@ -324,6 +324,7 @@ def get_review_detail(
     return CandidateReviewDetail(
         submission=submission,
         position_title=position.position_title,
+        position_slug=position.listing_slug,
         position_code=position.code_id,
         global_profile_fields=_get_global_fields(submission.profile_snapshot_json or {}),
         position_question_answers=answers,

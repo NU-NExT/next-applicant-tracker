@@ -1,11 +1,12 @@
-from uuid import uuid4
+import re
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.authn import ensure_admin_user, require_bearer_token
 from app.api.schemas import (
+    ApplicationCycleRead,
     GlobalQuestionBankRead,
     GlobalQuestionSelectionPayload,
     JobListingAdminCreate,
@@ -14,6 +15,8 @@ from app.api.schemas import (
     JobListingCreate,
     JobListingRead,
     JobListingUpdate,
+    PublicJobListingDetail,
+    PublicJobListingSummary,
     PositionQuestionCreate,
     PositionQuestionRead,
     PositionQuestionReorder,
@@ -21,9 +24,17 @@ from app.api.schemas import (
 )
 from app.config import settings
 from app.db import get_db
-from app.models.models import ApplicationSubmission, JobListing, JobListingQuestion, QuestionnaireQuestion, QuestionType
+from app.models.models import (
+    ApplicationCycle,
+    ApplicationSubmission,
+    JobListing,
+    JobListingQuestion,
+    QuestionnaireQuestion,
+    QuestionType,
+)
 
 router = APIRouter(prefix="/api/job-listings", tags=["job-listings"])
+_SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
 
 def _assert_admin(authorization: str | None, db: Session) -> None:
@@ -32,8 +43,17 @@ def _assert_admin(authorization: str | None, db: Session) -> None:
 
 
 def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
-    desc = listing.description
-    description_text = desc.get("text", "") if isinstance(desc, dict) else str(desc or "")
+    description_text = _extract_description_text(listing.description)
+    cycle_slug: str | None = None
+    if listing.application_cycle_id is not None:
+        cycle_row = (
+            db.query(ApplicationCycle.slug)
+            .filter(ApplicationCycle.application_cycle_id == listing.application_cycle_id)
+            .first()
+        )
+        cycle_slug = cycle_row.slug if cycle_row else None
+    position_slug = _slugify(listing.position_title)
+    intake_path = f"/jobs/{cycle_slug}/{position_slug}" if cycle_slug and position_slug else f"/jobs/{listing.listing_slug}"
     application_count = (
         db.query(ApplicationSubmission)
         .filter(ApplicationSubmission.job_listing_id == listing.listing_id)
@@ -49,10 +69,12 @@ def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
     )
     return JobListingAdminRead(
         listing_id=listing.listing_id,
+        listing_slug=listing.listing_slug,
         code_id=listing.code_id,
         position_title=listing.position_title,
         description=description_text,
         required_skills=listing.required_skills,
+        application_cycle_id=listing.application_cycle_id,
         target_start_date=listing.target_start_date,
         listing_date_posted=listing.listing_date_posted,
         listing_date_end=listing.listing_date_end,
@@ -60,10 +82,21 @@ def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
         nuworks_position_id=listing.nuworks_position_id,
         is_active=listing.is_active,
         listing_date_created=listing.listing_date_created,
-        intake_url=f"{settings.frontend_url}/apply?position={listing.code_id}",
+        intake_url=f"{settings.frontend_url}{intake_path}",
         application_count=application_count,
         question_count=question_count,
     )
+
+
+def _extract_description_text(description: object) -> str:
+    if isinstance(description, dict):
+        return str(description.get("text", "") or "")
+    return str(description or "")
+
+
+def _get_cycle_slug_map(db: Session) -> dict[int, str]:
+    rows = db.query(ApplicationCycle.application_cycle_id, ApplicationCycle.slug).all()
+    return {row.application_cycle_id: row.slug for row in rows}
 
 
 def _normalize_position_fields(payload_dict: dict) -> None:
@@ -92,23 +125,54 @@ def _map_job_listing_payload(payload_dict: dict) -> dict:
     return mapped
 
 
-def _generate_code_id() -> str:
-    return f"POS-{uuid4().hex[:8].upper()}"
+def _slugify(value: str) -> str:
+    return _SLUG_NON_ALNUM_RE.sub("-", value.strip().lower()).strip("-")
 
 
-def _ensure_unique_code_id(db: Session, preferred_code: str | None) -> str:
-    if preferred_code:
-        code = preferred_code.strip().upper()
-        if code:
-            exists = db.query(JobListing).filter(JobListing.code_id == code).first()
-            if exists:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="code_id already exists")
-            return code
+def _normalize_or_400_slug(raw_slug: str) -> str:
+    slug = _slugify(raw_slug)
+    if not slug:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid slug")
+    return slug
+
+
+def _ensure_unique_code_id(db: Session, preferred_code: str | None) -> str | None:
+    if not preferred_code:
+        return None
+    code = preferred_code.strip().upper()
+    if not code:
+        return None
+    exists = db.query(JobListing).filter(JobListing.code_id == code).first()
+    if exists:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="code_id already exists")
+    return code
+
+
+def _build_listing_slug_base(position_title: str, cycle_slug: str | None) -> str:
+    _ = cycle_slug
+    title_slug = _slugify(position_title)
+    if title_slug:
+        return title_slug
+    return "position"
+
+
+def _ensure_unique_listing_slug(db: Session, base_slug: str, *, exclude_listing_id: int | None = None) -> str:
+    candidate = base_slug
+    suffix = 2
     while True:
-        generated = _generate_code_id()
-        exists = db.query(JobListing).filter(JobListing.code_id == generated).first()
-        if not exists:
-            return generated
+        query = db.query(JobListing).filter(JobListing.listing_slug == candidate)
+        if exclude_listing_id is not None:
+            query = query.filter(JobListing.listing_id != exclude_listing_id)
+        if query.first() is None:
+            return candidate
+        candidate = f"{base_slug}-{suffix}"
+        suffix += 1
+
+
+def _generate_listing_slug(db: Session, position_title: str, application_cycle_id: int | None) -> str:
+    _ = application_cycle_id
+    base_slug = _build_listing_slug_base(position_title, None)
+    return _ensure_unique_listing_slug(db, base_slug)
 
 
 def _get_listing_or_404(listing_id: int, db: Session) -> JobListing:
@@ -126,6 +190,21 @@ def _get_question_or_404(listing_id: int, question_id: int, db: Session) -> Ques
     if q is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     return q
+
+
+def _validate_application_cycle_id(application_cycle_id: int | None, db: Session) -> None:
+    if application_cycle_id is None:
+        return
+    exists = (
+        db.query(ApplicationCycle.application_cycle_id)
+        .filter(ApplicationCycle.application_cycle_id == application_cycle_id)
+        .first()
+    )
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid application_cycle_id",
+        )
 
 
 @router.get("/admin/{listing_id}/questions", response_model=list[PositionQuestionRead])
@@ -364,6 +443,31 @@ def list_admin_job_listings(
     return [_build_admin_read(listing, db) for listing in listings]
 
 
+@router.get("/admin/application-cycles", response_model=list[ApplicationCycleRead])
+def list_application_cycles(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[ApplicationCycle]:
+    _assert_admin(authorization, db)
+    rows = (
+        db.query(
+            ApplicationCycle.application_cycle_id,
+            ApplicationCycle.name,
+            ApplicationCycle.slug,
+        )
+        .order_by(ApplicationCycle.name.asc())
+        .all()
+    )
+    return [
+        ApplicationCycleRead(
+            application_cycle_id=row.application_cycle_id,
+            name=row.name,
+            slug=row.slug,
+        )
+        for row in rows
+    ]
+
+
 @router.get("/admin/{job_listing_id}", response_model=JobListingAdminRead)
 def get_admin_job_listing(
     job_listing_id: int,
@@ -384,19 +488,22 @@ def create_admin_job_listing(
     db: Session = Depends(get_db),
 ) -> JobListingAdminRead:
     _assert_admin(authorization, db)
-    code_id = _ensure_unique_code_id(db, payload.code_id)
+    _validate_application_cycle_id(payload.application_cycle_id, db)
+    position_title = payload.position_title.strip()
+    listing_slug = _generate_listing_slug(db, position_title, payload.application_cycle_id)
     listing = JobListing(
-        position_title=payload.position_title.strip(),
-        job=payload.position_title.strip(),  # legacy column mirroring position_title; keep in sync
-        code_id=code_id,
+        position_title=position_title,
+        job=position_title,  # legacy column mirroring position_title; keep in sync
+        code_id=None,
         description={"text": payload.description},
         required_skills=payload.required_skills or None,
+        application_cycle_id=payload.application_cycle_id,
         target_start_date=payload.target_start_date,
         listing_date_posted=payload.listing_date_posted,
         listing_date_end=payload.listing_date_end,
         nuworks_url=payload.nuworks_url,
         nuworks_position_id=payload.nuworks_position_id,
-        listing_slug=code_id.lower(),  # auto-generated; unique because code_id is unique
+        listing_slug=listing_slug,
         is_active=True,
     )
     db.add(listing)
@@ -427,6 +534,8 @@ def patch_admin_job_listing(
     if listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
     updates = payload.model_dump(exclude_unset=True)
+    if "application_cycle_id" in updates:
+        _validate_application_cycle_id(updates["application_cycle_id"], db)
     if "position_title" in updates:
         title = updates.pop("position_title").strip()
         listing.position_title = title
@@ -470,12 +579,74 @@ def list_job_listings(db: Session = Depends(get_db)) -> list[JobListing]:
     )
 
 
-@router.get("/{job_listing_id}", response_model=JobListingRead)
-def get_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> JobListing:
-    job_listing = db.query(JobListing).filter(JobListing.listing_id == job_listing_id).first()
-    if job_listing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
-    return job_listing
+@router.get("/public", response_model=list[PublicJobListingSummary])
+def list_public_job_listings(db: Session = Depends(get_db)) -> list[PublicJobListingSummary]:
+    cycle_slug_map = _get_cycle_slug_map(db)
+    listings = db.query(JobListing).filter(JobListing.is_active == True).order_by(JobListing.listing_date_created.desc()).all()
+    return [
+        PublicJobListingSummary(
+            listing_id=listing.listing_id,
+            listing_slug=listing.listing_slug,
+            cycle_slug=cycle_slug_map.get(listing.application_cycle_id) if listing.application_cycle_id is not None else None,
+            position_title=listing.position_title,
+            description=_extract_description_text(listing.description),
+            target_start_date=listing.target_start_date,
+        )
+        for listing in listings
+    ]
+
+
+@router.get("/public/by-cycle-title", response_model=PublicJobListingDetail)
+def get_public_job_listing_by_cycle_and_title(
+    cycle: str = Query(..., min_length=1),
+    title: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+) -> PublicJobListingDetail:
+    normalized_cycle = _slugify(cycle)
+    normalized_title_key = _slugify(title)
+    if not normalized_title_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid title")
+    candidates = (
+        db.query(JobListing)
+        .join(ApplicationCycle, JobListing.application_cycle_id == ApplicationCycle.application_cycle_id)
+        .filter(
+            JobListing.is_active == True,  # noqa: E712
+            ApplicationCycle.slug == normalized_cycle,
+        )
+        .all()
+    )
+    listing = next((row for row in candidates if _slugify(row.position_title) == normalized_title_key), None)
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    return PublicJobListingDetail(
+        listing_id=listing.listing_id,
+        listing_slug=listing.listing_slug,
+        cycle_slug=normalized_cycle,
+        position_title=listing.position_title,
+        description=_extract_description_text(listing.description),
+        target_start_date=listing.target_start_date,
+        listing_date_end=listing.listing_date_end,
+        required_skills=listing.required_skills,
+    )
+
+
+@router.get("/public/{listing_slug}", response_model=PublicJobListingDetail)
+def get_public_job_listing_by_slug(listing_slug: str, db: Session = Depends(get_db)) -> PublicJobListingDetail:
+    cycle_slug_map = _get_cycle_slug_map(db)
+    normalized = _normalize_or_400_slug(listing_slug)
+    listing = db.query(JobListing).filter(JobListing.listing_slug == normalized, JobListing.is_active == True).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    return PublicJobListingDetail(
+        listing_id=listing.listing_id,
+        listing_slug=listing.listing_slug,
+        cycle_slug=cycle_slug_map.get(listing.application_cycle_id) if listing.application_cycle_id is not None else None,
+        position_title=listing.position_title,
+        description=_extract_description_text(listing.description),
+        target_start_date=listing.target_start_date,
+        listing_date_end=listing.listing_date_end,
+        required_skills=listing.required_skills,
+    )
 
 
 @router.post("", response_model=JobListingRead, status_code=status.HTTP_201_CREATED)
@@ -486,8 +657,16 @@ def create_job_listing(payload: JobListingCreate, db: Session = Depends(get_db))
     if payload_dict.get("listing_date_created") is None:
         payload_dict.pop("listing_date_created", None)
     _normalize_position_fields(payload_dict)
-    code_id = _ensure_unique_code_id(db, payload_dict.get("code_id"))
-    payload_dict["code_id"] = code_id
+    payload_dict["code_id"] = _ensure_unique_code_id(db, payload_dict.get("code_id"))
+    if payload_dict.get("listing_slug"):
+        normalized_slug = _normalize_or_400_slug(str(payload_dict["listing_slug"]))
+        payload_dict["listing_slug"] = _ensure_unique_listing_slug(db, normalized_slug)
+    else:
+        payload_dict["listing_slug"] = _generate_listing_slug(
+            db,
+            payload_dict["position_title"],
+            payload_dict.get("application_cycle_id"),
+        )
 
     job_listing = JobListing(**payload_dict)
     db.add(job_listing)
@@ -533,6 +712,7 @@ def update_job_listing(job_listing_id: int, payload: JobListingCreate, db: Sessi
         payload_dict.pop("listing_date_created", None)
     _normalize_position_fields(payload_dict)
     payload_dict["code_id"] = job_listing.code_id
+    payload_dict["listing_slug"] = job_listing.listing_slug
 
     for key, value in payload_dict.items():
         setattr(job_listing, key, value)
@@ -568,6 +748,8 @@ def patch_job_listing(job_listing_id: int, payload: JobListingUpdate, db: Sessio
         _normalize_position_fields(payload_dict)
     if "code_id" in payload_dict:
         payload_dict["code_id"] = job_listing.code_id
+    if "listing_slug" in payload_dict:
+        payload_dict["listing_slug"] = job_listing.listing_slug
 
     for key, value in payload_dict.items():
         setattr(job_listing, key, value)
@@ -609,4 +791,50 @@ def get_job_listing_by_position_code(position_code: str, db: Session = Depends(g
     job_listing = db.query(JobListing).filter(JobListing.code_id == normalized).first()
     if job_listing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
-    return {"listing_id": job_listing.listing_id, "code_id": job_listing.code_id}
+    return {"listing_id": job_listing.listing_id, "listing_slug": job_listing.listing_slug, "code_id": job_listing.code_id}
+
+
+@router.get("/by-slug/{listing_slug}")
+def get_job_listing_by_slug(listing_slug: str, db: Session = Depends(get_db)) -> dict:
+    normalized = _normalize_or_400_slug(listing_slug)
+    job_listing = db.query(JobListing).filter(JobListing.listing_slug == normalized).first()
+    if job_listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    return {"listing_id": job_listing.listing_id, "listing_slug": job_listing.listing_slug, "code_id": job_listing.code_id}
+
+
+@router.get("/by-cycle-title")
+def get_job_listing_by_cycle_and_title(
+    cycle: str = Query(..., min_length=1),
+    title: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+) -> dict:
+    normalized_cycle = _slugify(cycle)
+    normalized_title_key = _slugify(title)
+    if not normalized_title_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid title")
+    candidates = (
+        db.query(JobListing)
+        .join(ApplicationCycle, JobListing.application_cycle_id == ApplicationCycle.application_cycle_id)
+        .filter(
+            JobListing.is_active == True,  # noqa: E712
+            ApplicationCycle.slug == normalized_cycle,
+        )
+        .all()
+    )
+    job_listing = next((row for row in candidates if _slugify(row.position_title) == normalized_title_key), None)
+    if job_listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    return {
+        "listing_id": job_listing.listing_id,
+        "listing_slug": job_listing.listing_slug,
+        "code_id": job_listing.code_id,
+    }
+
+
+@router.get("/{job_listing_id}", response_model=JobListingRead)
+def get_job_listing(job_listing_id: int, db: Session = Depends(get_db)) -> JobListing:
+    job_listing = db.query(JobListing).filter(JobListing.listing_id == job_listing_id).first()
+    if job_listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job listing not found")
+    return job_listing

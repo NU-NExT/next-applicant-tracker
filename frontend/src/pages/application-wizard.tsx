@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
 import {
+  getJobListingByCycleTitle,
   createRepositoryRequest,
   getJobListingByPositionCode,
+  getJobListingBySlug,
   getMyFullProfile,
   getMyRepositoryRequests,
   getRepositoryQuestions,
+  getRepositoryQuestionsBySlug,
   getRepositoryQuestionsByPosition,
   updateMyFullProfile,
   type RepositoryQuestion,
@@ -25,6 +28,9 @@ import { StepReviewSubmit } from "../components/wizard/StepReviewSubmit";
 import { WizardStepper } from "../components/wizard/WizardStepper";
 
 type ApplicationWizardPageProps = {
+  cycleSlug?: string;
+  positionTitle?: string;
+  listingSlug?: string;
   positionCode?: string;
   jobId?: string;
 };
@@ -77,10 +83,20 @@ function resolveGlobalAnswer(prompt: string, profile: ProfileFormData, context: 
   }
 }
 
-export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizardPageProps) {
+export function ApplicationWizardPage({
+  cycleSlug,
+  positionTitle,
+  listingSlug,
+  positionCode,
+  jobId,
+}: ApplicationWizardPageProps) {
   const accessToken = localStorage.getItem("auth_access_token") ?? "";
-  const identifier = positionCode ?? jobId ?? "";
-  const numericId = Number(identifier);
+  const normalizedCycleSlug = (cycleSlug ?? "").trim().toLowerCase();
+  const normalizedPositionTitle = (positionTitle ?? "").trim();
+  const normalizedListingSlug = (listingSlug ?? "").trim().toLowerCase();
+  const normalizedPositionCode = (positionCode ?? "").trim().toUpperCase();
+  const identifier = normalizedPositionTitle || normalizedListingSlug || normalizedPositionCode || (jobId ?? "");
+  const numericId = Number(jobId ?? "");
   const isNumeric = Number.isFinite(numericId) && numericId > 0;
 
   const [step, setStep] = useState(0);
@@ -109,6 +125,7 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
   // Resolved job listing id for submission
   const [resolvedJobListingId, setResolvedJobListingId] = useState<number | undefined>(undefined);
+  const [resolvedJobListingSlug, setResolvedJobListingSlug] = useState("");
 
   useEffect(() => {
     if (!accessToken) {
@@ -120,21 +137,35 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
     void (async () => {
       try {
         const profilePromise = getMyFullProfile(accessToken);
-        const questionsPromise = isNumeric
-          ? getRepositoryQuestions(numericId)
-          : getRepositoryQuestionsByPosition(identifier.toUpperCase());
         const myAppsPromise = getMyRepositoryRequests(accessToken);
-        // Job listing lookup can 404 if position code doesn't exist yet — don't let it fail the whole fetch
-        const jobListingPromise = isNumeric
-          ? Promise.resolve(null)
-          : getJobListingByPositionCode(identifier.toUpperCase()).catch(() => null);
+        // Job listing lookup can 404 if identifier doesn't exist yet — don't let it fail the whole fetch
+        const jobListingPromise = normalizedListingSlug
+          ? getJobListingBySlug(normalizedListingSlug).catch(() => null)
+          : normalizedCycleSlug && normalizedPositionTitle
+            ? getJobListingByCycleTitle(normalizedCycleSlug, normalizedPositionTitle).catch(() => null)
+          : isNumeric
+            ? Promise.resolve(null)
+            : normalizedPositionCode
+              ? getJobListingByPositionCode(normalizedPositionCode).catch(() => null)
+              : Promise.resolve(null);
 
-        const [profile, questions, myApps, jobListing] = await Promise.all([
+        const [profile, myApps, jobListing] = await Promise.all([
           profilePromise,
-          questionsPromise,
           myAppsPromise,
           jobListingPromise,
         ]);
+        if ((normalizedListingSlug || (normalizedCycleSlug && normalizedPositionTitle)) && !jobListing) {
+          throw new Error("Position not found");
+        }
+        const listingSlug =
+          normalizedListingSlug || (jobListing?.listing_slug as string | undefined) || "";
+        const questions = listingSlug
+          ? await getRepositoryQuestionsBySlug(listingSlug)
+          : isNumeric
+            ? await getRepositoryQuestions(numericId)
+            : normalizedPositionCode
+              ? await getRepositoryQuestionsByPosition(normalizedPositionCode)
+              : [];
 
         const profileForm = profileFullToProfileForm(profile);
         const globalContext: GlobalAnswerContext = {
@@ -158,6 +189,7 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
           ? numericId
           : (jobListing?.listing_id as number | undefined);
         setResolvedJobListingId(listingId);
+        setResolvedJobListingSlug(listingSlug);
 
         if (listingId) {
           setAlreadyApplied(myApps.some((a) => a.job_listing_id === listingId));
@@ -168,7 +200,15 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
         setLoading(false);
       }
     })();
-  }, [accessToken, identifier, isNumeric, numericId]);
+  }, [
+    accessToken,
+    isNumeric,
+    normalizedCycleSlug,
+    normalizedListingSlug,
+    normalizedPositionCode,
+    normalizedPositionTitle,
+    numericId,
+  ]);
 
   if (loading) {
     return (
@@ -244,6 +284,7 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
     await createRepositoryRequest(
       {
         job_listing_id: resolvedJobListingId,
+        job_listing_slug: resolvedJobListingSlug || undefined,
         applicant_name: profileData.preferredName.trim() || profileData.fullLegalName,
         applicant_email: profileData.email,
         resume_s3_key: resumeS3Key || undefined,
@@ -260,7 +301,7 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
 
       <main className="mx-auto max-w-[1100px] px-4 pb-8 pt-24">
         <section className="rounded-md border border-[#c7c7c7] bg-white p-6">
-          <h1 className="mb-1 text-3xl font-semibold text-[#1f1f1f]">Apply: Position {identifier}</h1>
+          <h1 className="mb-1 text-3xl font-semibold text-[#1f1f1f]">Apply: {identifier}</h1>
           <p className="mb-6 text-sm text-[#4d4d4d]">Complete all steps to submit your application.</p>
 
           <div className="mb-8">

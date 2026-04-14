@@ -8,9 +8,20 @@ type JobBoardItem = {
   title: string;
   detailUrl: string;
   role: string;
-  detailLabel: string;
+  cycleLabel: string;
   description: string | null;
 };
+
+function formatCycleLabel(cycleSlug: string): string {
+  return cycleSlug
+    .trim()
+    .toLowerCase()
+    .split("-")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => (/^\d+$/.test(part) ? part : `${part[0].toUpperCase()}${part.slice(1)}`))
+    .join(" ");
+}
 
 export function JobBoardPage() {
   const [apiJobs, setApiJobs] = useState<PublicJobListingRecord[]>([]);
@@ -35,10 +46,7 @@ export function JobBoardPage() {
           return null;
         }
 
-        const startDate = new Date(job.target_start_date ?? "");
-        const detailLabel = Number.isNaN(startDate.getTime())
-          ? "Open Role"
-          : `Starts ${startDate.toLocaleDateString()}`;
+        const cycleLabel = formatCycleLabel(cycleSlug);
         const description = typeof job.description === "string" ? job.description.trim() : "";
 
         return {
@@ -46,7 +54,7 @@ export function JobBoardPage() {
           title,
           detailUrl: `/jobs/${cycleSlug}/${slugifyUrlValue(title)}`,
           role: title || "Untitled role",
-          detailLabel,
+          cycleLabel,
           description: description.length > 0 ? description : null,
         };
       })
@@ -78,7 +86,7 @@ export function JobBoardPage() {
                     {job.role}
                   </a>
                   <div className="text-right">
-                    <p className="text-[24px] leading-none font-semibold text-[#1f6f5f]">{job.detailLabel}</p>
+                    <p className="text-[24px] leading-none font-semibold text-[#1f6f5f]">{job.cycleLabel}</p>
                   </div>
                 </div>
                 {job.description ? (

@@ -55,6 +55,20 @@ class AuthDeactivateAdminRequest(BaseModel):
     email: str
 
 
+class AuthSetUserRoleRequest(BaseModel):
+    email: str
+    is_admin: bool
+
+
+class AuthSetUserActiveRequest(BaseModel):
+    email: str
+    is_active: bool
+
+
+class AuthDeleteUserRequest(BaseModel):
+    email: str
+
+
 class DevLoginRequest(BaseModel):
     email: str
 
@@ -121,6 +135,13 @@ def _cognito_username(email: str, username: str) -> str:
     # Keep local `username` for internal metadata, but use email in Cognito auth APIs.
     _ = username  # retained for signature compatibility with existing callers
     return email
+
+
+def _split_name(raw_name: str, fallback_username: str, fallback_family: str) -> tuple[str, str]:
+    name_parts = raw_name.strip().split(" ", 1)
+    given_name = name_parts[0] if name_parts else fallback_username
+    family_name = name_parts[1] if len(name_parts) > 1 else fallback_family
+    return given_name, family_name
 
 
 _RETURN_TO_JOB_LOGIN_RE = re.compile(r"^/jobs/[^/?#]+/login$")
@@ -239,6 +260,51 @@ def _upsert_cognito_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+def _set_user_admin_membership(cognito: Any, cognito_username: str, is_admin: bool) -> None:
+    try:
+        if is_admin:
+            cognito.admin_add_user_to_group(
+                UserPoolId=settings.cognito_user_pool_id,
+                Username=cognito_username,
+                GroupName=settings.cognito_admin_group_name,
+            )
+        else:
+            cognito.admin_remove_user_from_group(
+                UserPoolId=settings.cognito_user_pool_id,
+                Username=cognito_username,
+                GroupName=settings.cognito_admin_group_name,
+            )
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        # Removing membership for a user that is not in the group should not fail the request.
+        if not (not is_admin and error_code in {"UserNotFoundException", "ResourceNotFoundException", "NotAuthorizedException"}):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=exc.response.get("Error", {}).get("Message", "Failed to update ADMIN group membership."),
+            ) from exc
+
+
+def _set_cognito_enabled(cognito: Any, cognito_username: str, is_active: bool) -> None:
+    try:
+        if is_active:
+            cognito.admin_enable_user(
+                UserPoolId=settings.cognito_user_pool_id,
+                Username=cognito_username,
+            )
+        else:
+            cognito.admin_disable_user(
+                UserPoolId=settings.cognito_user_pool_id,
+                Username=cognito_username,
+            )
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code not in {"UserNotFoundException", "ResourceNotFoundException"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=exc.response.get("Error", {}).get("Message", "Failed to update Cognito account status."),
+            ) from exc
 
 
 @router.post("/register-applicant")
@@ -406,9 +472,7 @@ def create_admin(
     cognito = _get_cognito_client()
 
     try:
-        name_parts = payload.name.strip().split(" ", 1)
-        given_name = name_parts[0] if name_parts else username
-        family_name = name_parts[1] if len(name_parts) > 1 else "Admin"
+        given_name, family_name = _split_name(payload.name, username, "Admin")
         cognito.admin_create_user(
             UserPoolId=settings.cognito_user_pool_id,
             Username=cognito_username,
@@ -442,9 +506,7 @@ def create_admin(
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
-        name_parts = payload.name.strip().split(" ", 1)
-        first_name = name_parts[0] if name_parts else username
-        last_name = name_parts[1] if len(name_parts) > 1 else "Admin"
+        first_name, last_name = _split_name(payload.name, username, "Admin")
         user = User(
             email=email,
             password=hash_password(f"cognito-managed::{username}"),
@@ -500,3 +562,127 @@ def deactivate_admin(
         db.commit()
 
     return {"message": "ADMIN account deactivated.", "username": username}
+
+
+@router.get("/admin/users")
+def list_users(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    access_token = require_bearer_token(authorization)
+    ensure_admin_user(db, access_token)
+
+    users = db.query(User).order_by(User.is_admin.desc(), User.is_active.desc(), User.email.asc()).all()
+    return [
+        {
+            "user_id": user.user_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_admin": user.is_admin,
+            "is_active": user.is_active,
+            "consented_at": user.consented_at,
+            "user_metadata": user.user_metadata or {},
+        }
+        for user in users
+    ]
+
+
+@router.post("/admin/set-role")
+def set_user_role(
+    payload: AuthSetUserRoleRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
+    access_token = require_bearer_token(authorization)
+    acting_admin = ensure_admin_user(db, access_token)
+    if acting_admin.email == email and not payload.is_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot remove your own ADMIN role.")
+
+    cognito = _get_cognito_client()
+    _set_user_admin_membership(cognito, cognito_username, payload.is_admin)
+
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        user = User(
+            email=email,
+            password=hash_password(f"cognito-managed::{username}"),
+            first_name=username,
+            last_name="User",
+            is_admin=payload.is_admin,
+            is_active=True,
+            user_metadata={"auth_provider": "cognito", "username": username, "role": "ADMIN" if payload.is_admin else "USER"},
+        )
+    else:
+        user.is_admin = payload.is_admin
+        merged = dict(user.user_metadata or {})
+        merged.update({"auth_provider": "cognito", "username": username, "role": "ADMIN" if payload.is_admin else "USER"})
+        user.user_metadata = merged
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"message": "User role updated.", "email": user.email, "is_admin": user.is_admin}
+
+
+@router.post("/admin/set-active")
+def set_user_active(
+    payload: AuthSetUserActiveRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
+    access_token = require_bearer_token(authorization)
+    acting_admin = ensure_admin_user(db, access_token)
+    if acting_admin.email == email and not payload.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot deactivate your own account.")
+
+    cognito = _get_cognito_client()
+    _set_cognito_enabled(cognito, cognito_username, payload.is_active)
+
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.is_active = payload.is_active
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return {"message": "User account status updated.", "email": user.email, "is_active": user.is_active}
+    return {"message": "Cognito account status updated.", "email": email, "is_active": payload.is_active}
+
+
+@router.post("/admin/delete-user")
+def delete_user(
+    payload: AuthDeleteUserRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    email, username = _northeastern_username_from_email(payload.email)
+    cognito_username = _cognito_username(email, username)
+    access_token = require_bearer_token(authorization)
+    acting_admin = ensure_admin_user(db, access_token)
+    if acting_admin.email == email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account.")
+
+    cognito = _get_cognito_client()
+    try:
+        cognito.admin_delete_user(
+            UserPoolId=settings.cognito_user_pool_id,
+            Username=cognito_username,
+        )
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code not in {"UserNotFoundException", "ResourceNotFoundException"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=exc.response.get("Error", {}).get("Message", "Failed to delete user from Cognito."),
+            ) from exc
+
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        db.delete(user)
+        db.commit()
+
+    return {"message": "User deleted.", "email": email}

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 
 import {
-  authCreateAdmin,
-  authDeactivateAdmin,
   getAdminOpenApplications,
   getAdminPastApplications,
   type AdminApplicationRow,
@@ -10,13 +8,8 @@ import {
 import { Header } from "../components/header";
 
 export function AdminDashboardPage() {
-  const token = localStorage.getItem("auth_access_token") ?? "";
   const [openApplications, setOpenApplications] = useState<AdminApplicationRow[]>([]);
   const [pastApplications, setPastApplications] = useState<AdminApplicationRow[]>([]);
-  const [adminName, setAdminName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [deactivateEmail, setDeactivateEmail] = useState("");
-  const [adminStatus, setAdminStatus] = useState("");
 
   useEffect(() => {
     void (async () => {
@@ -36,7 +29,15 @@ export function AdminDashboardPage() {
       <Header />
 
       <main className="mx-auto max-w-[1200px] px-4 pb-6 pt-24">
-        <h1 className="mb-4 text-5xl font-medium text-[#1f1f1f]">Welcome, {localStorage.getItem("auth_user_name") ?? "User"}!</h1>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-5xl font-medium text-[#1f1f1f]">Welcome, {localStorage.getItem("auth_user_name") ?? "User"}!</h1>
+          <a
+            href="/admin/manage-accounts"
+            className="rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
+          >
+            Add admin
+          </a>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
           <section className="border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(220px,34vh,360px)]">
@@ -97,68 +98,6 @@ export function AdminDashboardPage() {
             ))}
           </div>
         </section>
-
-        <section className="mt-5 grid gap-4 md:grid-cols-2">
-          <div className="border border-[#c7c7c7] bg-[#d8d8d8] p-4">
-            <h2 className="border-b border-[#b5b5b5] pb-1 text-2xl text-[#2d2d2d]">Create ADMIN Account</h2>
-            <div className="mt-3 space-y-2">
-              <input
-                value={adminName}
-                onChange={(e) => setAdminName(e.target.value)}
-                placeholder="Full name"
-                className="w-full rounded border border-[#bcbcbc] px-3 py-2"
-              />
-              <input
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="name@northeastern.edu"
-                className="w-full rounded border border-[#bcbcbc] px-3 py-2"
-              />
-              <button
-                type="button"
-                className="rounded bg-[#1f6f5f] px-4 py-2 text-white"
-                onClick={async () => {
-                  if (!token) return;
-                  try {
-                    await authCreateAdmin({ name: adminName, email: adminEmail }, token);
-                    setAdminStatus("ADMIN account created. Temporary password sent by Cognito email.");
-                  } catch {
-                    setAdminStatus("Could not create ADMIN account.");
-                  }
-                }}
-              >
-                Create ADMIN
-              </button>
-            </div>
-          </div>
-          <div className="border border-[#c7c7c7] bg-[#d8d8d8] p-4">
-            <h2 className="border-b border-[#b5b5b5] pb-1 text-2xl text-[#2d2d2d]">Deactivate ADMIN</h2>
-            <div className="mt-3 space-y-2">
-              <input
-                value={deactivateEmail}
-                onChange={(e) => setDeactivateEmail(e.target.value)}
-                placeholder="name@northeastern.edu"
-                className="w-full rounded border border-[#bcbcbc] px-3 py-2"
-              />
-              <button
-                type="button"
-                className="rounded bg-[#7a1d1d] px-4 py-2 text-white"
-                onClick={async () => {
-                  if (!token) return;
-                  try {
-                    await authDeactivateAdmin({ email: deactivateEmail }, token);
-                    setAdminStatus("ADMIN account deactivated.");
-                  } catch {
-                    setAdminStatus("Could not deactivate ADMIN account.");
-                  }
-                }}
-              >
-                Deactivate ADMIN
-              </button>
-            </div>
-          </div>
-        </section>
-        {adminStatus ? <p className="mt-3 text-sm text-[#333]">{adminStatus}</p> : null}
       </main>
     </div>
   );

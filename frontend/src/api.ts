@@ -233,6 +233,31 @@ export type AuthDeactivateAdminPayload = {
   email: string;
 };
 
+export type AuthSetUserRolePayload = {
+  email: string;
+  is_admin: boolean;
+};
+
+export type AuthSetUserActivePayload = {
+  email: string;
+  is_active: boolean;
+};
+
+export type AuthDeleteUserPayload = {
+  email: string;
+};
+
+export type AdminManagedUser = {
+  user_id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  consented_at?: string | null;
+  user_metadata: Record<string, unknown>;
+};
+
 export type CandidateReviewSearchRow = {
   submission_id: number;
   candidate_name: string;
@@ -277,8 +302,8 @@ export type CandidateReviewDetail = {
 };
 
 const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
-const DEFAULT_API_BASE_URL =
-  APP_ENVIRONMENT === "production" ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
+const IS_CLOUD_ENV = APP_ENVIRONMENT === "production" || APP_ENVIRONMENT === "staging";
+const DEFAULT_API_BASE_URL = IS_CLOUD_ENV ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim() || DEFAULT_API_BASE_URL;
 
 export const apiClient = axios.create({
@@ -423,6 +448,43 @@ export async function authDeactivateAdmin(
   accessToken: string
 ): Promise<{ message: string }> {
   const response = await apiClient.post<{ message: string }>("/api/auth/admin/deactivate", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authListUsers(accessToken: string): Promise<AdminManagedUser[]> {
+  const response = await apiClient.get<AdminManagedUser[]>("/api/auth/admin/users", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authSetUserRole(
+  payload: AuthSetUserRolePayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/set-role", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authSetUserActive(
+  payload: AuthSetUserActivePayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/set-active", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authDeleteUser(
+  payload: AuthDeleteUserPayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/delete-user", payload, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return response.data;

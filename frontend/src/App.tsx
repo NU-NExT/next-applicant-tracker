@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminApplicantStatsPage } from "./pages/admin-applicant-stats";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminEditJobPostPage } from "./pages/admin-edit-job-post";
+import { AdminManageAccountsPage } from "./pages/admin-manage-accounts";
 import { AdminReviewApplicationsPage } from "./pages/admin-review-applications";
 import { ApplicantDashboardPage } from "./pages/applicant-dashboard";
 import { AuthChooseAccountPage } from "./pages/auth-choose-account";
@@ -60,6 +61,10 @@ export function App() {
 
   if (path === "/admin/review-applications") {
     return <AdminReviewApplicationsPage />;
+  }
+
+  if (path === "/admin/manage-accounts") {
+    return <AdminManageAccountsPage />;
   }
 
   if (path === "/applicant-dashboard") {
@@ -127,6 +132,9 @@ export function App() {
         </li>
         <li>
           <a href="/admin/review-applications">/admin/review-applications</a>
+        </li>
+        <li>
+          <a href="/admin/manage-accounts">/admin/manage-accounts</a>
         </li>
         <li>
           <a href="/applicant-dashboard">/applicant-dashboard</a>

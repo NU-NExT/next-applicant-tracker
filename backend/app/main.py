@@ -8,6 +8,7 @@ from app.api.routes.field_options import router as field_options_router
 from app.api.routes.job_data import router as job_data_router
 from app.api.routes.job_listings import router as job_listings_router
 from app.api.routes.positions import router as positions_router
+from app.api.routes.consent import router as consent_router
 from app.api.routes.profile import router as profile_router
 from app.api.routes.repository import router as repository_router
 from app.api.routes.repository_requests import router as repository_requests_router
@@ -37,4 +38,5 @@ app.include_router(admin_dashboard_router)
 app.include_router(admin_review_router)
 app.include_router(auth_router)
 app.include_router(field_options_router)
+app.include_router(consent_router)
 app.include_router(profile_router)

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { RepositoryQuestion } from "../../api";
+import { useEffect, useState } from "react";
+import { deactivateApplicationConsent, getLatestConsent, recordApplicationConsent, type RepositoryQuestion } from "../../api";
 import { joinClubList, joinLinkList, type ProfileFormData } from "../profile/profileFormModel";
 
 type StepReviewSubmitProps = {
@@ -14,6 +14,9 @@ type StepReviewSubmitProps = {
   dropdownFallbacks: Record<number, string>;
   onSubmit: () => Promise<void>;
   onBack: () => void;
+  jobListingId?: number;
+  accessToken?: string;
+  applicationSubmissionId?: number;
 };
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -37,11 +40,21 @@ export function StepReviewSubmit({
   dropdownFallbacks,
   onSubmit,
   onBack,
+  jobListingId,
+  accessToken,
+  applicationSubmissionId,
 }: StepReviewSubmitProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submittedAt, setSubmittedAt] = useState("");
+  const [consented, setConsented] = useState(false);
+  const [consentText, setConsentText] = useState("");
+  const [consentRecordId, setConsentRecordId] = useState<number | null>(null);
+
+  useEffect(() => {
+    void getLatestConsent().then((r) => setConsentText(r.consent_text)).catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -156,13 +169,35 @@ export function StepReviewSubmit({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
+      <label className="flex items-start gap-3 text-sm text-[#444]">
+        <input
+          type="checkbox"
+          checked={consented}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            setConsented(checked);
+            if (checked && jobListingId && accessToken) {
+              void recordApplicationConsent(jobListingId, consentText, accessToken, applicationSubmissionId)
+                .then((r) => setConsentRecordId(r.application_consent_id))
+                .catch(() => {});
+            } else if (!checked && consentRecordId && accessToken) {
+              void deactivateApplicationConsent(consentRecordId, accessToken)
+                .then(() => setConsentRecordId(null))
+                .catch(() => {});
+            }
+          }}
+          className="mt-0.5 shrink-0"
+        />
+        <span>{consentText}</span>
+      </label>
+
       <div className="flex justify-between">
         <button type="button" onClick={onBack} className="rounded-md border border-[#c7c7c7] px-5 py-2 text-[#333]">
           Back
         </button>
         <button
           type="button"
-          disabled={submitting}
+          disabled={submitting || !consented}
           onClick={handleSubmit}
           className="rounded-md bg-[#1f6f5f] px-5 py-2 text-white disabled:opacity-60"
         >

@@ -32,7 +32,7 @@ def _build_score_detail(row: ApplicationReviewScore, db: Session) -> Application
         score_label=score_value.label if score_value else "Unknown",
         reviewer_name=reviewer_name,
         reviewer_email=reviewer_email,
-        created_at=row.application_review_score_created_at,
+        created_at=row.application_review_score_updated_at,
     )
 
 
@@ -87,16 +87,31 @@ def submit_score(
             detail=f"Score label '{payload.score_label.value}' not found. Ensure the database has been seeded.",
         )
 
-    score = ApplicationReviewScore(
-        application_submission_id=application_id,
-        reviewer_user_id=admin_user.user_id,
-        score_value_id=score_value.score_value_id,
+    existing_score = (
+        db.query(ApplicationReviewScore)
+        .filter(
+            ApplicationReviewScore.application_submission_id == application_id,
+            ApplicationReviewScore.reviewer_user_id == admin_user.user_id,
+        )
+        .first()
     )
-    db.add(score)
-    submission.status = "scored"
-    db.add(submission)
-    db.commit()
-    db.refresh(score)
+
+    if existing_score:
+        existing_score.score_value_id = score_value.score_value_id
+        db.commit()
+        db.refresh(existing_score)
+        score = existing_score
+    else:
+        score = ApplicationReviewScore(
+            application_submission_id=application_id,
+            reviewer_user_id=admin_user.user_id,
+            score_value_id=score_value.score_value_id,
+        )
+        db.add(score)
+        submission.status = "scored"
+        db.add(submission)
+        db.commit()
+        db.refresh(score)
 
     return ApplicationScoreDetail(
         application_review_score_id=score.application_review_score_id,
@@ -104,8 +119,32 @@ def submit_score(
         score_label=score_value.label,
         reviewer_name=f"{admin_user.first_name} {admin_user.last_name}".strip(),
         reviewer_email=admin_user.email,
-        created_at=score.application_review_score_created_at,
+        created_at=score.application_review_score_updated_at,
     )
+
+
+@router.delete("/{application_id}/scores", status_code=204)
+def delete_score(
+    application_id: int,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> None:
+    token = require_bearer_token(authorization)
+    admin_user = ensure_admin_user(db, token)
+
+    score = (
+        db.query(ApplicationReviewScore)
+        .filter(
+            ApplicationReviewScore.application_submission_id == application_id,
+            ApplicationReviewScore.reviewer_user_id == admin_user.user_id,
+        )
+        .first()
+    )
+    if score is None:
+        raise HTTPException(status_code=404, detail="Score not found")
+
+    db.delete(score)
+    db.commit()
 
 
 @router.get("/{application_id}/score-summary", response_model=ScoreSummaryResponse)

@@ -303,6 +303,23 @@ export type CandidateReviewDetail = {
   comments: ApplicationReviewCommentRecord[];
 };
 
+export type ScoreLabel = "Strong" | "Potential" | "Defer" | "Deny";
+
+export type ApplicationScoreDetail = {
+  application_review_score_id: number;
+  application_submission_id: number;
+  score_label: ScoreLabel;
+  reviewer_name: string;
+  reviewer_email: string;
+  created_at: string;
+};
+
+export type ScoreSummaryResponse = {
+  total_reviews: number;
+  score_counts: Record<ScoreLabel, number>;
+  individual_scores: ApplicationScoreDetail[];
+};
+
 const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
 const IS_CLOUD_ENV = APP_ENVIRONMENT === "production" || APP_ENVIRONMENT === "staging";
 const DEFAULT_API_BASE_URL = IS_CLOUD_ENV ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
@@ -574,6 +591,36 @@ export async function addCandidateReviewScore(
   const response = await apiClient.post<ApplicationReviewScoreRecord>(
     `/api/admin/review/applications/${submissionId}/scores`,
     { score },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return response.data;
+}
+
+export async function submitScore(
+  applicationId: number,
+  scoreLabel: ScoreLabel,
+  accessToken: string
+): Promise<ApplicationScoreDetail> {
+  const response = await apiClient.post<ApplicationScoreDetail>(
+    `/api/applications/${applicationId}/scores`,
+    { score_label: scoreLabel },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return response.data;
+}
+
+export async function deleteScore(applicationId: number, accessToken: string): Promise<void> {
+  await apiClient.delete(`/api/applications/${applicationId}/scores`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export async function fetchScoreSummary(
+  applicationId: number,
+  accessToken: string
+): Promise<ScoreSummaryResponse> {
+  const response = await apiClient.get<ScoreSummaryResponse>(
+    `/api/applications/${applicationId}/score-summary`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   return response.data;

@@ -3,7 +3,6 @@ import { Search } from "lucide-react";
 
 import {
   addCandidateReviewComment,
-  addCandidateReviewScore,
   exportCandidateReviewsCsv,
   getCandidateReviewDetail,
   searchCandidateReviews,
@@ -11,18 +10,17 @@ import {
   type CandidateReviewSearchRow,
 } from "../api";
 import { Header } from "../components/header";
+import { ScorePanel } from "../components/ScorePanel";
 import { Button } from "../components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "../components/ui/drawer";
 import { ChevronsUpDownIcon } from "../components/ui/lucide-chevrons-up-down";
 
 export function AdminReviewApplicationsPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
-  const currentReviewerName = (localStorage.getItem("auth_user_name") ?? "").trim().toLowerCase();
   const [allResults, setAllResults] = useState<CandidateReviewSearchRow[]>([]);
   const [results, setResults] = useState<CandidateReviewSearchRow[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
   const [detail, setDetail] = useState<CandidateReviewDetail | null>(null);
-  const [newScore, setNewScore] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
@@ -117,17 +115,6 @@ export function AdminReviewApplicationsPage() {
     setSelectedSubmissionId(allResults[0]?.submission_id ?? null);
     setStatusMessage("");
   };
-
-  const averageScoreRounded = useMemo(() => {
-    if (!detail || detail.scores.length === 0) return null;
-    const avg = detail.scores.reduce((sum, score) => sum + score.score, 0) / detail.scores.length;
-    return Math.round(avg);
-  }, [detail]);
-
-  const currentReviewerScore = useMemo(() => {
-    if (!detail || !currentReviewerName) return null;
-    return detail.scores.find((score) => score.reviewer_name.trim().toLowerCase() === currentReviewerName) ?? null;
-  }, [detail, currentReviewerName]);
 
   const estDateTimeFormatter = useMemo(
     () =>
@@ -349,37 +336,7 @@ export function AdminReviewApplicationsPage() {
                         {detail.submission.status}
                       </p>
                     </div>
-                    <aside className="flex min-w-[200px] flex-col items-end justify-center bg-white px-4 py-3">
-                      <p className="text-right text-sm font-semibold text-[#1f1f1f]">
-                        Avg Score: {averageScoreRounded ?? "N/A"}
-                      </p>
-                      {currentReviewerScore ? (
-                        <p className="mt-2 text-right text-xs text-[#555]">Your score: {currentReviewerScore.score}</p>
-                      ) : (
-                        <div className="mt-2 flex items-center gap-2">
-                          <input
-                            value={newScore}
-                            onChange={(e) => setNewScore(e.target.value)}
-                            className="w-20 rounded border border-[#c3c3c3] bg-white px-2 py-1 text-sm"
-                            placeholder="score"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="bg-white text-xs"
-                            onClick={async () => {
-                              if (!token || !selectedSubmissionId) return;
-                              await addCandidateReviewScore(selectedSubmissionId, Number(newScore), token);
-                              setNewScore("");
-                              const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
-                              setDetail(refreshed);
-                            }}
-                          >
-                            Add Score
-                          </Button>
-                        </div>
-                      )}
-                    </aside>
+                    <ScorePanel applicationId={selectedSubmissionId} token={token} />
                   </div>
 
                   <div className="relative grid gap-4 lg:grid-cols-3">

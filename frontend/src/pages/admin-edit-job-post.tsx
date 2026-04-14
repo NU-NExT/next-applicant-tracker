@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import {
   createFieldOption,
   deleteFieldOption,
+  getAdminJobListings,
+  getJobListing,
   getFieldOptions,
-  getJobListings,
   type FieldOptionRecord,
   type JobListingRecord,
   updateJobListing,
@@ -80,15 +81,20 @@ export function AdminEditJobPostPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const rows = await getJobListings();
-        const now = new Date();
-        setListings(rows.filter((row) => new Date(row.date_end) >= now || new Date(row.date_created) >= now));
+        if (!token) {
+          setListings([]);
+          return;
+        }
+        const adminListings = await getAdminJobListings(token);
+        const unpostedIds = adminListings.filter((row) => !row.listing_date_posted).map((row) => row.listing_id);
+        const rows = await Promise.all(unpostedIds.map((id) => getJobListing(id)));
+        setListings(rows);
       } catch {
         setListings([]);
       }
     })();
     void refreshFieldOptions();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!selected) return;
@@ -121,10 +127,11 @@ export function AdminEditJobPostPage() {
                 : null,
           })),
       });
-      const refreshed = await getJobListings();
-      const now = new Date();
-      const openOrFuture = refreshed.filter((row) => new Date(row.date_end) >= now || new Date(row.date_created) >= now);
-      setListings(openOrFuture);
+      if (!token) return;
+      const adminListings = await getAdminJobListings(token);
+      const unpostedIds = adminListings.filter((row) => !row.listing_date_posted).map((row) => row.listing_id);
+      const refreshed = await Promise.all(unpostedIds.map((id) => getJobListing(id)));
+      setListings(refreshed);
       const latestSelected = refreshed.find((row) => row.id === selected.id) ?? null;
       setSelected(latestSelected);
       setStatusMessage("Updated listing questions, types, limits, and dropdown options in Postgres.");
@@ -139,7 +146,7 @@ export function AdminEditJobPostPage() {
       <main className="mx-auto max-w-[1200px] px-4 pt-24">
         <section className="rounded border border-[#c7c7c7] bg-[#d8d8d8] p-5">
           <h1 className="text-4xl font-semibold text-[#1f1f1f]">Edit Job Post</h1>
-          <p className="mt-2 text-[#2d2d2d]">Open/future roles from Postgres:</p>
+          <p className="mt-2 text-[#2d2d2d]">Unposted roles from Postgres:</p>
           <div className="mt-3 flex flex-wrap gap-3">
             {listings.map((listing) => (
               <button

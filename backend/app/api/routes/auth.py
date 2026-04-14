@@ -278,8 +278,14 @@ def _set_user_admin_membership(cognito: Any, cognito_username: str, is_admin: bo
             )
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
-        # Removing membership for a user that is not in the group should not fail the request.
-        if not (not is_admin and error_code in {"UserNotFoundException", "ResourceNotFoundException", "NotAuthorizedException"}):
+        # Removing membership for missing/non-member users should not block DB role sync.
+        tolerated_remove_errors = {
+            "UserNotFoundException",
+            "ResourceNotFoundException",
+            "NotAuthorizedException",
+            "InvalidParameterException",
+        }
+        if not (not is_admin and error_code in tolerated_remove_errors):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=exc.response.get("Error", {}).get("Message", "Failed to update ADMIN group membership."),

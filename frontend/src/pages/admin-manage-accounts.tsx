@@ -4,8 +4,8 @@ import {
   authCreateAdmin,
   authDeleteUser,
   authListUsers,
-  authSetUserActive,
   authSetUserRole,
+  getMyProfile,
   type AdminManagedUser,
 } from "../api";
 import { Header } from "../components/header";
@@ -33,7 +33,7 @@ function buildCognitoLink(mode: "login" | "signup", email: string): string | nul
 
 export function AdminManageAccountsPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
-  const currentEmail = (localStorage.getItem("auth_user_email") ?? "").trim().toLowerCase();
+  const [currentUserEmail, setCurrentUserEmail] = useState((localStorage.getItem("auth_user_email") ?? "").trim().toLowerCase());
   const [users, setUsers] = useState<AdminManagedUser[]>([]);
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -61,6 +61,21 @@ export function AdminManageAccountsPage() {
     void loadUsers();
   }, [loadUsers]);
 
+  useEffect(() => {
+    if (!token) return;
+    void (async () => {
+      try {
+        const profile = await getMyProfile(token);
+        const normalized = profile.email.trim().toLowerCase();
+        if (!normalized) return;
+        setCurrentUserEmail(normalized);
+        localStorage.setItem("auth_user_email", normalized);
+      } catch {
+        // Keep using any cached email if profile lookup fails.
+      }
+    })();
+  }, [token]);
+
   const filteredUsers = useMemo(() => {
     const key = search.trim().toLowerCase();
     if (!key) return users;
@@ -77,8 +92,9 @@ export function AdminManageAccountsPage() {
       await action();
       setStatusMessage(successMessage);
       await loadUsers();
-    } catch {
-      setStatusMessage("Action failed. Please try again.");
+    } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setStatusMessage(detail ?? "Action failed. Please try again.");
     } finally {
       setBusyKey("");
     }
@@ -89,7 +105,7 @@ export function AdminManageAccountsPage() {
       <Header />
       <main className="mx-auto max-w-[1200px] px-4 pb-8 pt-24">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-5xl font-medium text-[#1f1f1f]">Admin account management</h1>
+          <h1 className="text-5xl font-medium text-[#1f1f1f]">Manage Users</h1>
           <a href="/admin-dashboard" className="rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline">
             Back to dashboard
           </a>
@@ -193,12 +209,12 @@ export function AdminManageAccountsPage() {
               </thead>
               <tbody>
                 {filteredUsers.map((user) => {
-                  const ownAccount = user.email.toLowerCase() === currentEmail;
+                  const ownAccount = user.email.toLowerCase() === currentUserEmail;
                   return (
                     <tr key={user.user_id} className="border-b border-[#cfcfcf] align-top">
                       <td className="px-2 py-2">{`${user.first_name} ${user.last_name}`.trim() || "Unknown"}</td>
                       <td className="px-2 py-2">{user.email}</td>
-                      <td className="px-2 py-2">{user.is_admin ? "ADMIN" : "USER"}</td>
+                      <td className="px-2 py-2">{user.is_admin ? "Admin" : "Applicant"}</td>
                       <td className="px-2 py-2">{user.is_active ? "Active" : "Deactivated"}</td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap gap-2">
@@ -206,33 +222,20 @@ export function AdminManageAccountsPage() {
                             type="button"
                             className="rounded bg-[#1f6f5f] px-3 py-1 text-white disabled:opacity-60"
                             disabled={ownAccount || busyKey === `role-${user.user_id}`}
-                            onClick={() =>
+                            onClick={() => {
+                              const nextIsAdmin = user.is_admin ? false : true;
                               void runAction(
                                 `role-${user.user_id}`,
                                 async () => {
-                                  await authSetUserRole({ email: user.email, is_admin: !user.is_admin }, token);
+                                  await authSetUserRole({ email: user.email, is_admin: nextIsAdmin }, token);
                                 },
-                                `Updated ${user.email} role.`
-                              )
-                            }
+                                nextIsAdmin
+                                  ? `Granted Admin role to ${user.email}.`
+                                  : `Removed Admin role from ${user.email}.`
+                              );
+                            }}
                           >
                             {user.is_admin ? "Remove admin" : "Make admin"}
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded bg-[#1f6f5f] px-3 py-1 text-white disabled:opacity-60"
-                            disabled={ownAccount || busyKey === `active-${user.user_id}`}
-                            onClick={() =>
-                              void runAction(
-                                `active-${user.user_id}`,
-                                async () => {
-                                  await authSetUserActive({ email: user.email, is_active: !user.is_active }, token);
-                                },
-                                `Updated ${user.email} account status.`
-                              )
-                            }
-                          >
-                            {user.is_active ? "Deactivate" : "Activate"}
                           </button>
                           <button
                             type="button"

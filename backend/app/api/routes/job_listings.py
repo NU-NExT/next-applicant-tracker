@@ -54,6 +54,7 @@ def _build_admin_read(listing: JobListing, db: Session) -> JobListingAdminRead:
         description=description_text,
         required_skills=listing.required_skills,
         target_start_date=listing.target_start_date,
+        listing_date_posted=listing.listing_date_posted,
         listing_date_end=listing.listing_date_end,
         nuworks_url=listing.nuworks_url,
         nuworks_position_id=listing.nuworks_position_id,
@@ -81,6 +82,8 @@ def _map_job_listing_payload(payload_dict: dict) -> dict:
             mapped["listing_date_created"] = value
     if "date_end" in mapped:
         mapped["listing_date_end"] = mapped.pop("date_end")
+    if "date_posted" in mapped:
+        mapped["listing_date_posted"] = mapped.pop("date_posted")
     if "slug" in mapped:
         mapped["listing_slug"] = mapped.pop("slug")
     if "code_id" in mapped and mapped["code_id"] is not None:
@@ -389,6 +392,7 @@ def create_admin_job_listing(
         description={"text": payload.description},
         required_skills=payload.required_skills or None,
         target_start_date=payload.target_start_date,
+        listing_date_posted=payload.listing_date_posted,
         listing_date_end=payload.listing_date_end,
         nuworks_url=payload.nuworks_url,
         nuworks_position_id=payload.nuworks_position_id,
@@ -454,7 +458,16 @@ def deactivate_job_listing(
 
 @router.get("", response_model=list[JobListingRead])
 def list_job_listings(db: Session = Depends(get_db)) -> list[JobListing]:
-    return db.query(JobListing).filter(JobListing.is_active == True).order_by(JobListing.listing_date_created.desc()).all()
+    return (
+        db.query(JobListing)
+        .filter(
+            JobListing.is_active == True,  # noqa: E712
+            JobListing.listing_date_posted.isnot(None),
+            JobListing.listing_date_posted <= func.now(),
+        )
+        .order_by(JobListing.listing_date_posted.desc(), JobListing.listing_date_created.desc())
+        .all()
+    )
 
 
 @router.get("/{job_listing_id}", response_model=JobListingRead)

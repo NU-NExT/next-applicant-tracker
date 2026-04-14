@@ -86,7 +86,7 @@ def create_repository_request(
     user = get_or_create_user_from_access_token(db, token)
     resolved_job_listing_id = payload.job_listing_id
     if resolved_job_listing_id is None and payload.job_listing_slug:
-        by_slug = db.query(JobListing).filter(JobListing.listing_slug == payload.job_listing_slug.strip()).first()
+        by_slug = db.query(JobListing).filter(JobListing.listing_slug == payload.job_listing_slug.strip().lower()).first()
         if by_slug is not None:
             resolved_job_listing_id = by_slug.listing_id
     if resolved_job_listing_id is None and payload.job_listing_slug:

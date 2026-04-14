@@ -342,10 +342,10 @@ export function AdminReviewApplicationsPage() {
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
                     <div className="flex-1 rounded border border-[#d5d5d5] bg-[#f7f7f7] px-4 py-3">
                       <h2 className="text-2xl text-center font-semibold text-[#1f1f1f]">
-                        {selectedRow?.candidate_name ?? detail.submission.applicant_name} 
+                        {selectedRow?.candidate_name ?? detail.submission.applicant_name}
                       </h2>
                       <p className="text-sm text-center text-[#3f3f3f]">
-                        {detail.submission.applicant_email} | {detail.position_title} ({detail.position_code}) | Status:{" "}
+                        {detail.submission.applicant_email} | {detail.position_title} ({detail.position_slug ?? detail.position_code ?? "n/a"}) | Status:{" "}
                         {detail.submission.status}
                       </p>
                     </div>

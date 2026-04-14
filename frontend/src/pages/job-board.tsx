@@ -1,22 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { Header } from "../components/header";
-import { getJobData, type JobDataRecord } from "../api";
+import { getPublicJobListings, type PublicJobListingRecord } from "../api";
+import { slugifyUrlValue } from "../lib/utils";
 
 type JobBoardItem = {
-  jobId: string;
+  cycleSlug: string;
+  title: string;
+  detailUrl: string;
   role: string;
-  semester: string;
-  published: string | null;
+  cycleLabel: string;
   description: string | null;
 };
 
+function formatCycleLabel(cycleSlug: string): string {
+  return cycleSlug
+    .trim()
+    .toLowerCase()
+    .split("-")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => (/^\d+$/.test(part) ? part : `${part[0].toUpperCase()}${part.slice(1)}`))
+    .join(" ");
+}
+
 export function JobBoardPage() {
-  const [apiJobs, setApiJobs] = useState<JobDataRecord[]>([]);
+  const [apiJobs, setApiJobs] = useState<PublicJobListingRecord[]>([]);
 
   useEffect(() => {
     void (async () => {
       try {
-        const data = await getJobData();
+        const data = await getPublicJobListings();
         setApiJobs(data);
       } catch {
         setApiJobs([]);
@@ -27,22 +40,21 @@ export function JobBoardPage() {
   const jobs = useMemo<JobBoardItem[]>(() => {
     return apiJobs
       .map((job) => {
-        const rawId = job.metadata_id ?? job.id;
-        if (rawId === undefined || rawId === null) {
+        const cycleSlug = (job.cycle_slug ?? "").trim().toLowerCase();
+        const title = (job.position_title ?? "").trim();
+        if (!cycleSlug || !title) {
           return null;
         }
 
-        const releaseDate = new Date(job.release_date);
-        const published = Number.isNaN(releaseDate.getTime())
-          ? null
-          : `Published ${releaseDate.toLocaleDateString()}`;
+        const cycleLabel = formatCycleLabel(cycleSlug);
         const description = typeof job.description === "string" ? job.description.trim() : "";
 
         return {
-          jobId: String(rawId),
-          role: job.role?.trim() || "Untitled role",
-          semester: job.semester?.trim() || "Semester TBD",
-          published,
+          cycleSlug,
+          title,
+          detailUrl: `/jobs/${cycleSlug}/${slugifyUrlValue(title)}`,
+          role: title || "Untitled role",
+          cycleLabel,
           description: description.length > 0 ? description : null,
         };
       })
@@ -68,14 +80,13 @@ export function JobBoardPage() {
         ) : (
           <ul className="list-none p-0">
             {jobs.map((job) => (
-              <li key={`${job.jobId}-${job.role}`} className="border-b border-[#8e8e8e] py-6">
+              <li key={`${job.cycleSlug}-${job.title}`} className="border-b border-[#8e8e8e] py-6">
                 <div className="flex items-start justify-between">
-                  <a href={`/jobs/${job.jobId}`} className="text-[40px] font-semibold text-[#1f6f5f] no-underline">
+                  <a href={job.detailUrl} className="text-[40px] font-semibold text-[#1f6f5f] no-underline">
                     {job.role}
                   </a>
                   <div className="text-right">
-                    <p className="text-[40px] leading-none font-semibold text-[#1f6f5f]">{job.semester}</p>
-                    {/* {job.published ? <p className="mt-1 text-lg text-[#7f7f7f]">{job.published}</p> : null} */}
+                    <p className="text-[24px] leading-none font-semibold text-[#1f6f5f]">{job.cycleLabel}</p>
                   </div>
                 </div>
                 {job.description ? (

@@ -54,6 +54,14 @@ def get_questions_for_listing(job_listing_id: int, db: Session = Depends(get_db)
     return [_serialize_question(q) for q in questions]
 
 
+@router.get("/by-slug/{listing_slug}/questions", response_model=list[dict])
+def get_questions_for_listing_slug(listing_slug: str, db: Session = Depends(get_db)) -> list[dict]:
+    position = db.query(JobListing).filter(JobListing.listing_slug == listing_slug.strip().lower()).first()
+    if not position:
+        return [{"prompt": q, "question_type_id": None} for q in FALLBACK_QUESTIONS]
+    return get_questions_for_listing(position.listing_id, db)
+
+
 @router.get("/by-position/{position_code}/questions", response_model=list[dict])
 def get_questions_for_position_code(position_code: str, db: Session = Depends(get_db)) -> list[dict]:
     position = db.query(JobListing).filter(JobListing.code_id == position_code.strip().upper()).first()

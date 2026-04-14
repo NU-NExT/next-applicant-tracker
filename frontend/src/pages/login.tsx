@@ -23,7 +23,15 @@ export function LoginPage({ jobId }: LoginPageProps) {
   const [statusMessage, setStatusMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [hasToken, setHasToken] = useState<boolean>(() => Boolean(localStorage.getItem("auth_access_token")));
-  const nextApplicantPath = useMemo(() => (jobId ? `/jobs/${jobId}` : "/applicant-dashboard"), [jobId]);
+  const nextFromQuery = useMemo(() => {
+    const value = new URLSearchParams(window.location.search).get("next")?.trim();
+    if (!value) return null;
+    return value.startsWith("/") ? value : null;
+  }, []);
+  const nextApplicantPath = useMemo(
+    () => nextFromQuery || (jobId ? `/jobs/${jobId}` : "/applicant-dashboard"),
+    [jobId, nextFromQuery]
+  );
   const signupReturnToPath = useMemo(() => (jobId ? `/jobs/${jobId}/login` : "/login"), [jobId]);
 
   const isNortheasternEmail = (value: string): boolean => value.trim().toLowerCase().endsWith("@northeastern.edu");

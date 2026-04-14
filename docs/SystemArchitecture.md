@@ -153,7 +153,8 @@ Routes defined in `App.tsx`:
 | `/applicant-dashboard`       | `ApplicantDashboardPage`      |
 | `/build-application`         | `BuildApplicationPage`        |
 | `/auth/choose-account`       | `AuthChooseAccountPage`       |
-| `/apply`                     | `ApplicationWizardPage`       |
+| `/apply/:slug`               | `ApplicationWizardPage`       |
+| `/apply` (legacy query mode) | `ApplicationWizardPage`       |
 | `/profile`                   | `ProfilePage`                 |
 | `/consent`                   | `ConsentPage`                 |
 | `/jobs/:id`                  | `JobDetailPage`               |
@@ -185,7 +186,7 @@ src/
 
 ### Application Wizard Pattern
 
-The application flow (`/apply`) uses a wizard pattern implemented in `components/wizard/`. Steps progress linearly: position validation → profile completion check → profile review → position-specific questions + consent → submission. The wizard reads position data via query param (`?position=<code_id>`) and gates progression at each step based on API state.
+The application flow (`/apply/:slug`) uses a wizard pattern implemented in `components/wizard/`. Steps progress linearly: position validation → profile completion check → profile review → position-specific questions + consent → submission. The wizard resolves position data by listing slug, with legacy query-param fallback (`/apply?position=<code_id>`) retained for older links.
 
 ---
 

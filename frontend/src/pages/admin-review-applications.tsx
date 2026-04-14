@@ -293,7 +293,7 @@ export function AdminReviewApplicationsPage() {
                       {selectedRow?.candidate_name ?? detail.submission.applicant_name}
                     </h2>
                     <p className="text-sm text-center text-[#3f3f3f]">
-                      {detail.submission.applicant_email} | {detail.position_title} ({detail.position_code}) | Status:{" "}
+                      {detail.submission.applicant_email} | {detail.position_title} ({detail.position_slug ?? detail.position_code ?? "n/a"}) | Status:{" "}
                       {detail.submission.status}
                     </p>
                   </div>

@@ -18,7 +18,6 @@ import { Header } from "../components/header";
 
 type FormState = {
   position_title: string;
-  code_id: string;
   description: string;
   application_cycle_id: string;
 
@@ -30,7 +29,6 @@ type FormState = {
 
 const emptyForm: FormState = {
   position_title: "",
-  code_id: "",
   description: "",
   application_cycle_id: "",
 
@@ -100,7 +98,6 @@ export function AdminPositionsPage() {
     setBufferedQuestions([]);
     setForm({
       position_title: pos.position_title,
-      code_id: pos.code_id ?? "",
       description: pos.description,
       application_cycle_id: pos.application_cycle_id ? String(pos.application_cycle_id) : "",
 
@@ -124,10 +121,6 @@ export function AdminPositionsPage() {
       setStatusMessage("Title is required.");
       return;
     }
-    if (mode === "create" && !form.code_id.trim()) {
-      setStatusMessage("Position code is required.");
-      return;
-    }
     if (!form.description.trim()) {
       setStatusMessage("Description is required.");
       return;
@@ -137,7 +130,6 @@ export function AdminPositionsPage() {
       if (mode === "create") {
         const payload: AdminJobListingCreatePayload = {
           position_title: form.position_title.trim(),
-          code_id: form.code_id.trim().toUpperCase(),
           description: form.description.trim(),
           application_cycle_id: toNullableInt(form.application_cycle_id),
 
@@ -259,7 +251,7 @@ export function AdminPositionsPage() {
                         {pos.is_active ? "Active" : "Inactive"}
                       </span>
                     </div>
-                    <div className="mt-0.5 text-xs text-[#666]">{pos.code_id}</div>
+                    <div className="mt-0.5 text-xs text-[#666]">{pos.listing_slug}</div>
                   </button>
                 ))}
                 {positions.length === 0 && (
@@ -286,29 +278,6 @@ export function AdminPositionsPage() {
                       placeholder="e.g. Software Engineer"
                     />
                   </label>
-
-                  {/* Position Code */}
-                  {mode === "create" ? (
-                    <label className="block text-sm font-medium text-[#2d2d2d]">
-                      Position Code *
-                      <input
-                        value={form.code_id}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, code_id: e.target.value.toUpperCase() }))
-                        }
-                        className="mt-1 w-full rounded border border-[#d0d0d0] px-3 py-2 text-sm font-mono"
-                        placeholder="e.g. SWE-2025"
-                      />
-                      <span className="mt-1 block text-xs text-[#888]">
-                        Uppercase letters, numbers, hyphens. Cannot be changed after creation.
-                      </span>
-                    </label>
-                  ) : (
-                    <div className="text-sm">
-                      <p className="font-medium text-[#2d2d2d]">Position Code</p>
-                      <p className="mt-1 font-mono text-[#555]">{selected?.code_id}</p>
-                    </div>
-                  )}
 
                   {/* Description */}
                   <label className="block text-sm font-medium text-[#2d2d2d]">

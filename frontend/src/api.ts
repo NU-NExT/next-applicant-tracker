@@ -21,6 +21,17 @@ export type JobDataRecord = {
   description?: string | null;
 };
 
+export type PublicJobListingRecord = {
+  listing_id: number;
+  listing_slug: string;
+  cycle_slug?: string | null;
+  position_title: string;
+  description: string;
+  target_start_date?: string | null;
+  listing_date_end?: string | null;
+  required_skills?: string | null;
+};
+
 export type JobListingRecord = {
   id: number;
   code_id?: string | null;
@@ -95,7 +106,7 @@ export type RepositoryQuestion = {
 
 export type RepositoryRequestPayload = {
   job_listing_id?: number;
-  position_code?: string;
+  job_listing_slug?: string;
   applicant_name: string;
   applicant_email: string;
   responses_json: string;
@@ -269,7 +280,8 @@ export type ApplicationReviewCommentRecord = {
 export type CandidateReviewDetail = {
   submission: RepositoryRequestRecord;
   position_title: string;
-  position_code: string;
+  position_slug?: string | null;
+  position_code?: string | null;
   global_profile_fields: Record<string, unknown>;
   position_question_answers: Array<Record<string, unknown>>;
   resume_view_url?: string | null;
@@ -301,6 +313,38 @@ export async function getJobListings(): Promise<JobListingRecord[]> {
   return response.data;
 }
 
+export async function getPublicJobListings(): Promise<PublicJobListingRecord[]> {
+  const response = await apiClient.get<PublicJobListingRecord[]>("/api/job-listings/public");
+  return response.data;
+}
+
+export async function getPublicJobListingBySlug(listingSlug: string): Promise<PublicJobListingRecord> {
+  const response = await apiClient.get<PublicJobListingRecord>(`/api/job-listings/public/${listingSlug}`);
+  return response.data;
+}
+
+export async function getPublicJobListingByCycleTitle(
+  cycle: string,
+  title: string
+): Promise<PublicJobListingRecord> {
+  const response = await apiClient.get<PublicJobListingRecord>("/api/job-listings/public/by-cycle-title", {
+    params: { cycle, title },
+  });
+  return response.data;
+}
+
+export async function getJobListingBySlug(listingSlug: string): Promise<Record<string, unknown>> {
+  const response = await apiClient.get<Record<string, unknown>>(`/api/job-listings/by-slug/${listingSlug}`);
+  return response.data;
+}
+
+export async function getJobListingByCycleTitle(cycle: string, title: string): Promise<Record<string, unknown>> {
+  const response = await apiClient.get<Record<string, unknown>>("/api/job-listings/by-cycle-title", {
+    params: { cycle, title },
+  });
+  return response.data;
+}
+
 export async function getJobListingByPositionCode(positionCode: string): Promise<Record<string, unknown>> {
   const response = await apiClient.get<Record<string, unknown>>(`/api/job-listings/by-position-code/${positionCode}`);
   return response.data;
@@ -321,6 +365,11 @@ export async function updateJobListing(
 
 export async function getRepositoryQuestions(jobListingId: number): Promise<RepositoryQuestion[]> {
   const response = await apiClient.get<RepositoryQuestion[]>(`/api/repository/${jobListingId}/questions`);
+  return response.data;
+}
+
+export async function getRepositoryQuestionsBySlug(listingSlug: string): Promise<RepositoryQuestion[]> {
+  const response = await apiClient.get<RepositoryQuestion[]>(`/api/repository/by-slug/${listingSlug}/questions`);
   return response.data;
 }
 
@@ -560,6 +609,7 @@ export async function deleteFieldOption(optionId: number, accessToken: string): 
 
 export type AdminJobListingRecord = {
   listing_id: number;
+  listing_slug: string;
   code_id: string | null;
   position_title: string;
   description: string;
@@ -578,7 +628,6 @@ export type AdminJobListingRecord = {
 
 export type AdminJobListingCreatePayload = {
   position_title: string;
-  code_id: string;
   description: string;
   required_skills?: string;
   application_cycle_id?: number | null;
@@ -590,7 +639,7 @@ export type AdminJobListingCreatePayload = {
 };
 
 export type AdminJobListingUpdatePayload = Partial<
-  Omit<AdminJobListingCreatePayload, "code_id"> & { is_active: boolean }
+  AdminJobListingCreatePayload & { is_active: boolean }
 >;
 
 export type ApplicationCycleRecord = {

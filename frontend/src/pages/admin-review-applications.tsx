@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import {
   addCandidateReviewComment,
@@ -13,9 +13,11 @@ import {
 import { Header } from "../components/header";
 import { Button } from "../components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "../components/ui/drawer";
+import { ChevronsUpDownIcon } from "../components/ui/lucide-chevrons-up-down";
 
 export function AdminReviewApplicationsPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
+  const currentReviewerName = (localStorage.getItem("auth_user_name") ?? "").trim().toLowerCase();
   const [allResults, setAllResults] = useState<CandidateReviewSearchRow[]>([]);
   const [results, setResults] = useState<CandidateReviewSearchRow[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
@@ -23,22 +25,14 @@ export function AdminReviewApplicationsPage() {
   const [newScore, setNewScore] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
-  const [isCommentsOpen, setIsCommentsOpen] = useState(true);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [showExportToast, setShowExportToast] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [activeCommentsTab, setActiveCommentsTab] = useState<"thread" | "add">("thread");
+  const [openQuestionIndexes, setOpenQuestionIndexes] = useState<Set<number>>(new Set());
   const [filters, setFilters] = useState<Record<string, string>>({
     candidate_name: "",
-    northeastern_email: "",
-    major: "",
-    college: "",
-    grad_start: "",
-    grad_end: "",
     coop_number: "",
-    year_grade_level: "",
-    position: "",
-    cycle: "",
-    application_status: "",
   });
 
   const selectedRow = useMemo(
@@ -91,6 +85,8 @@ export function AdminReviewApplicationsPage() {
 
   useEffect(() => {
     setNewComment("");
+    setActiveCommentsTab("thread");
+    setOpenQuestionIndexes(new Set());
   }, [selectedSubmissionId]);
 
   useEffect(() => {
@@ -115,20 +111,57 @@ export function AdminReviewApplicationsPage() {
   const resetToAllApplicants = () => {
     setFilters({
       candidate_name: "",
-      northeastern_email: "",
-      major: "",
-      college: "",
-      grad_start: "",
-      grad_end: "",
       coop_number: "",
-      year_grade_level: "",
-      position: "",
-      cycle: "",
-      application_status: "",
     });
     setResults(allResults);
     setSelectedSubmissionId(allResults[0]?.submission_id ?? null);
     setStatusMessage("");
+  };
+
+  const averageScoreRounded = useMemo(() => {
+    if (!detail || detail.scores.length === 0) return null;
+    const avg = detail.scores.reduce((sum, score) => sum + score.score, 0) / detail.scores.length;
+    return Math.round(avg);
+  }, [detail]);
+
+  const currentReviewerScore = useMemo(() => {
+    if (!detail || !currentReviewerName) return null;
+    return detail.scores.find((score) => score.reviewer_name.trim().toLowerCase() === currentReviewerName) ?? null;
+  }, [detail, currentReviewerName]);
+
+  const estDateTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+    []
+  );
+
+  const formatCommentTimestampEst = (rawTimestamp: string) => {
+    if (!rawTimestamp) return "Unknown date";
+    const normalized = rawTimestamp.includes("T") ? rawTimestamp : rawTimestamp.replace(" ", "T");
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return "Unknown date";
+    return `${estDateTimeFormatter.format(parsed)} EST`;
+  };
+
+  const toggleQuestion = (index: number) => {
+    setOpenQuestionIndexes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
   };
 
   const goToPreviousApplicant = () => {
@@ -177,20 +210,7 @@ export function AdminReviewApplicationsPage() {
       <Header />
       <main className="px-4 pt-24 pb-6">
         <section className="mx-auto rounded p-5">
-          <div className="mb-4">
-            <Button
-              type="button"
-              className="rounded-md bg-[#1f6f5f] px-4 py-2 text-sm text-white hover:bg-[#18574b] disabled:opacity-60"
-              onClick={() => {
-                void exportCsv();
-              }}
-              disabled={isExportingCsv}
-            >
-              {isExportingCsv ? "Exporting..." : "Export Applicants CSV"}
-            </Button>
-          </div>
-          <div className="mb-4 flex items-center justify-between">
-          
+          <div className="mb-4 flex items-center justify-between gap-3">
             <Drawer open={isSearchDrawerOpen} onOpenChange={setIsSearchDrawerOpen} direction="left">
               <DrawerTrigger asChild>
                 <Button variant="outline" className="bg-white">
@@ -204,15 +224,18 @@ export function AdminReviewApplicationsPage() {
                 </DrawerHeader>
                 <div className="space-y-3 overflow-y-auto p-4">
                   <div className="grid gap-2">
-                    {Object.keys(filters).map((key) => (
-                      <input
-                        key={key}
-                        value={filters[key]}
-                        onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                        placeholder={key.split("_").join(" ")}
-                        className="rounded border border-[#bdbdbd] px-2 py-2 text-sm"
-                      />
-                    ))}
+                    <input
+                      value={filters.candidate_name}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, candidate_name: e.target.value }))}
+                      placeholder="candidate name"
+                      className="rounded border border-[#bdbdbd] px-2 py-2 text-sm"
+                    />
+                    <input
+                      value={filters.coop_number}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, coop_number: e.target.value }))}
+                      placeholder="coop number"
+                      className="rounded border border-[#bdbdbd] px-2 py-2 text-sm"
+                    />
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -256,16 +279,44 @@ export function AdminReviewApplicationsPage() {
                 </div>
               </DrawerContent>
             </Drawer>
+            <Button
+              type="button"
+              className="rounded-md bg-[#1f6f5f] px-4 py-2 text-sm text-white hover:bg-[#18574b] disabled:opacity-60"
+              onClick={() => {
+                void exportCsv();
+              }}
+              disabled={isExportingCsv}
+            >
+              {isExportingCsv ? "Exporting..." : "Export Applicants"}
+            </Button>
           </div>
 
           <div className="rounded border border-[#b8b8b8] bg-white p-4">
             {detail ? (
               <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[#555]">
-                      Applicant {selectedIndex >= 0 ? selectedIndex + 1 : 0} of {results.length}
-                    </p>
-                    <div className="flex gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-[#555]">
+                      <span>Applicant</span>
+                      <select
+                        value={selectedSubmissionId ?? ""}
+                        onChange={(e) => {
+                          const nextSubmissionId = Number(e.target.value);
+                          if (!Number.isNaN(nextSubmissionId) && nextSubmissionId > 0) {
+                            setSelectedSubmissionId(nextSubmissionId);
+                          }
+                        }}
+                        className="min-w-[25px] rounded border border-[#c3c3c3] bg-white px-2 py-1 text-xs text-[#1f1f1f]"
+                      >
+                        {results.length === 0 ? <option value="">No applicants</option> : null}
+                        {results.map((row, idx) => (
+                          <option key={row.submission_id} value={row.submission_id}>
+                            {idx + 1}
+                          </option>
+                        ))}
+                      </select>
+                      <span>of {results.length}</span>
+                    </div>
+                    <div className="ml-auto flex gap-2">
                       <Button
                         type="button"
                         variant="outline"
@@ -288,24 +339,70 @@ export function AdminReviewApplicationsPage() {
                       </Button>
                     </div>
                   </div>
-                  <div className="rounded border border-[#d5d5d5] bg-[#f7f7f7] px-4 py-3">
-                    <h2 className="text-2xl text-center font-semibold text-[#1f1f1f]">
-                      {selectedRow?.candidate_name ?? detail.submission.applicant_name}
-                    </h2>
-                    <p className="text-sm text-center text-[#3f3f3f]">
-                      {detail.submission.applicant_email} | {detail.position_title} ({detail.position_slug ?? detail.position_code ?? "n/a"}) | Status:{" "}
-                      {detail.submission.status}
-                    </p>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+                    <div className="flex-1 rounded border border-[#d5d5d5] bg-[#f7f7f7] px-4 py-3">
+                      <h2 className="text-2xl text-center font-semibold text-[#1f1f1f]">
+                        {selectedRow?.candidate_name ?? detail.submission.applicant_name}
+                      </h2>
+                      <p className="text-sm text-center text-[#3f3f3f]">
+                        {detail.submission.applicant_email} | {detail.position_title} ({detail.position_slug ?? detail.position_code ?? "n/a"}) | Status:{" "}
+                        {detail.submission.status}
+                      </p>
+                    </div>
+                    <aside className="flex min-w-[200px] flex-col items-end justify-center bg-white px-4 py-3">
+                      <p className="text-right text-sm font-semibold text-[#1f1f1f]">
+                        Avg Score: {averageScoreRounded ?? "N/A"}
+                      </p>
+                      {currentReviewerScore ? (
+                        <p className="mt-2 text-right text-xs text-[#555]">Your score: {currentReviewerScore.score}</p>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2">
+                          <input
+                            value={newScore}
+                            onChange={(e) => setNewScore(e.target.value)}
+                            className="w-20 rounded border border-[#c3c3c3] bg-white px-2 py-1 text-sm"
+                            placeholder="score"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="bg-white text-xs"
+                            onClick={async () => {
+                              if (!token || !selectedSubmissionId) return;
+                              await addCandidateReviewScore(selectedSubmissionId, Number(newScore), token);
+                              setNewScore("");
+                              const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
+                              setDetail(refreshed);
+                            }}
+                          >
+                            Add Score
+                          </Button>
+                        </div>
+                      )}
+                    </aside>
                   </div>
 
-                  <div className={`relative grid gap-4 ${isCommentsOpen ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
-                    <section className="rounded bg-white p-3">
+                  <div className="relative grid gap-4 lg:grid-cols-3">
+                    <section className="rounded bg-white p-3 lg:col-span-1">
                       <p className="font-semibold text-[#1f1f1f]">Application Questions & Answers</p>
                       <div className="mt-3 space-y-2">
                         {(detail.position_question_answers ?? []).map((entry, idx) => (
-                          <div key={`ans-${idx}`} className="rounded border border-[#e2e2e2] bg-[#fafafa] p-2 text-sm">
-                            <p className="font-medium">{String(entry.question ?? "Question")}</p>
-                            <p className="mt-1 whitespace-pre-wrap">{String(entry.answer ?? "")}</p>
+                          <div key={`ans-${idx}`} className="rounded border border-[#e2e2e2] bg-[#fafafa] text-sm">
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between gap-2 px-2 py-2 text-left font-medium"
+                              onClick={() => toggleQuestion(idx)}
+                            >
+                              <span>{String(entry.question ?? "Question")}</span>
+                              <ChevronsUpDownIcon className="h-4 w-4 shrink-0 text-[#666]" />
+                            </button>
+                            <div
+                              className={`overflow-hidden px-2 transition-all duration-200 ${
+                                openQuestionIndexes.has(idx) ? "max-h-[240px] pb-2 opacity-100" : "max-h-0 opacity-0"
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap">{String(entry.answer ?? "")}</p>
+                            </div>
                           </div>
                         ))}
                         {detail.position_question_answers.length === 0 ? (
@@ -314,7 +411,7 @@ export function AdminReviewApplicationsPage() {
                       </div>
                     </section>
 
-                    <section className="rounded border border-[#d8d8d8] bg-white p-3">
+                    <section className="rounded border border-[#d8d8d8] bg-white p-3 lg:col-span-2">
                       <div className="flex items-center justify-between">
                         <p className="font-semibold text-[#1f1f1f]">Resume Preview</p>
                       </div>
@@ -332,36 +429,47 @@ export function AdminReviewApplicationsPage() {
                       ) : null}
                     </section>
 
-                    {isCommentsOpen ? (
-                      <aside className="rounded bg-white p-3">
-                        <div className="flex items-center justify-between">
-                        <p className="font-semibold text-[#1f1f1f]">Comments</p>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="bg-white"
-                          onClick={() => setIsCommentsOpen((prev) => !prev)}
-                        >
-                          {isCommentsOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                        <div className="max-h-48 space-y-2 overflow-auto text-sm">
-                          {detail.comments.map((comment) => (
-                            <div key={comment.id} className="rounded border border-[#ececec] px-2 py-1">
-                              <p className="font-medium text-[#2d2d2d]">
-                                {comment.reviewer_name} - {new Date(comment.created_at).toLocaleString()}
-                              </p>
-                              <p className="mt-1 whitespace-pre-wrap">{comment.comment}</p>
-                            </div>
-                          ))}
-                          {detail.comments.length === 0 ? <p className="text-[#666]">No comments yet.</p> : null}
-                        </div>
+                  </div>
 
+                  <div className="rounded border border-[#d8d8d8] bg-[#fafafa] p-3">
+                    <div className="mb-3 flex items-center gap-2 border-b border-[#dedede] pb-2">
+                      <button
+                        type="button"
+                        className={`rounded px-3 py-1 text-sm ${
+                          activeCommentsTab === "thread" ? "bg-white font-semibold text-[#1f1f1f]" : "text-[#555]"
+                        }`}
+                        onClick={() => setActiveCommentsTab("thread")}
+                      >
+                        Comments
+                      </button>
+                      <button
+                        type="button"
+                        className={`rounded px-3 py-1 text-sm ${
+                          activeCommentsTab === "add" ? "bg-white font-semibold text-[#1f1f1f]" : "text-[#555]"
+                        }`}
+                        onClick={() => setActiveCommentsTab("add")}
+                      >
+                        Add Comment
+                      </button>
+                    </div>
+                    {activeCommentsTab === "thread" ? (
+                      <div className="max-h-56 space-y-2 overflow-auto text-sm">
+                        {detail.comments.map((comment) => (
+                          <div key={comment.id} className="rounded border border-[#ececec] bg-white px-2 py-1">
+                            <p className="font-medium text-[#2d2d2d]">
+                              {comment.reviewer_name} - {formatCommentTimestampEst(comment.created_at)}
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap">{comment.comment}</p>
+                          </div>
+                        ))}
+                        {detail.comments.length === 0 ? <p className="text-[#666]">No comments yet.</p> : null}
+                      </div>
+                    ) : (
+                      <div>
                         <textarea
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
-                          className="mt-3 h-24 w-full rounded border border-[#c3c3c3] px-2 py-1 text-sm"
+                          className="h-24 w-full rounded border border-[#c3c3c3] bg-white px-2 py-1 text-sm"
                           placeholder="Add reviewer comment"
                         />
                         <Button
@@ -372,46 +480,15 @@ export function AdminReviewApplicationsPage() {
                             if (!token || !selectedSubmissionId || !newComment.trim()) return;
                             await addCandidateReviewComment(selectedSubmissionId, newComment.trim(), token);
                             setNewComment("");
+                            setActiveCommentsTab("thread");
                             const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
                             setDetail(refreshed);
                           }}
                         >
                           Add Comment
                         </Button>
-                      </aside>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded border border-[#d8d8d8] bg-[#fafafa] p-3">
-                    <p className="font-semibold text-[#1f1f1f]">Scores</p>
-                    <div className="mt-2 space-y-1 text-sm">
-                      {detail.scores.map((score) => (
-                        <p key={score.id}>
-                          {score.reviewer_name}: {score.score} ({new Date(score.created_at).toLocaleString()})
-                        </p>
-                      ))}
-                      {detail.scores.length === 0 ? <p className="text-[#666]">No scores added yet.</p> : null}
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        value={newScore}
-                        onChange={(e) => setNewScore(e.target.value)}
-                        className="w-20 rounded border border-[#c3c3c3] px-2 py-1 text-sm"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="bg-white"
-                        onClick={async () => {
-                          if (!token || !selectedSubmissionId) return;
-                          await addCandidateReviewScore(selectedSubmissionId, Number(newScore), token);
-                          const refreshed = await getCandidateReviewDetail(selectedSubmissionId, token);
-                          setDetail(refreshed);
-                        }}
-                      >
-                        Add Score
-                      </Button>
-                    </div>
+                      </div>
+                    )}
                   </div>
               </div>
             ) : (

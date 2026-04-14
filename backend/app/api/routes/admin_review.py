@@ -75,6 +75,8 @@ def _build_candidate_review_rows(
     rows: list[CandidateReviewSearchRow] = []
     for submission in submissions:
         position_row = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
+        if position_row and position_row.listing_date_posted is None:
+            continue
         snapshot = submission.profile_snapshot_json or {}
         global_profile = _get_global_fields(snapshot)
 

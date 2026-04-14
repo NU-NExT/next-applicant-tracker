@@ -25,10 +25,24 @@ class Settings(BaseSettings):
     cognito_aws_access_key_id: str | None = None
     cognito_aws_secret_access_key: str | None = None
     cognito_aws_session_token: str | None = None
+    cors_allowed_origins: str = ""
+    frontend_dev_url: str = "http://localhost:3000"
+    frontend_public_url: str = "https://gateway.nunext.dev"
 
     frontend_url: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        configured = [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+        if configured:
+            return configured
+
+        env = (self.environment or "development").lower()
+        if env in {"production", "staging"}:
+            return [self.frontend_public_url]
+        return [self.frontend_dev_url, self.frontend_public_url]
 
 
 settings = Settings()

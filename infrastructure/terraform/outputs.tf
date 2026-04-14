@@ -61,3 +61,11 @@ output "route53_api_fqdn" {
 output "route53_name_servers" {
   value = var.enable_route53 && var.route53_create_zone ? aws_route53_zone.main[0].name_servers : []
 }
+
+output "ecr_frontend_repository_url" {
+  value = aws_ecr_repository.frontend.repository_url
+}
+
+output "ecr_backend_repository_url" {
+  value = aws_ecr_repository.backend.repository_url
+}

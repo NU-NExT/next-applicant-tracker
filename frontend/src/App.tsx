@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { AdminApplicantStatsPage } from "./pages/admin-applicant-stats";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminEditJobPostPage } from "./pages/admin-edit-job-post";
+import { AdminManageAccountsPage } from "./pages/admin-manage-accounts";
 import { AdminPositionsPage } from "./pages/admin-positions";
 import { AdminReviewApplicationsPage } from "./pages/admin-review-applications";
 import { ApplicantDashboardPage } from "./pages/applicant-dashboard";
@@ -51,10 +51,6 @@ export function App() {
     return <AdminDashboardPage />;
   }
 
-  if (path === "/admin/applicant-stats") {
-    return <AdminApplicantStatsPage />;
-  }
-
   if (path === "/admin/edit-job-post") {
     return <AdminEditJobPostPage />;
   }
@@ -63,6 +59,10 @@ export function App() {
     return <AdminReviewApplicationsPage />;
   }
 
+  if (path === "/admin/manage-accounts") {
+    return <AdminManageAccountsPage />;
+  }
+  
   if (path === "/admin/positions") {
     return <AdminPositionsPage />;
   }
@@ -155,13 +155,13 @@ export function App() {
           <a href="/admin-dashboard">/admin-dashboard</a>
         </li>
         <li>
-          <a href="/admin/applicant-stats">/admin/applicant-stats</a>
-        </li>
-        <li>
           <a href="/admin/edit-job-post">/admin/edit-job-post</a>
         </li>
         <li>
           <a href="/admin/review-applications">/admin/review-applications</a>
+        </li>
+        <li>
+          <a href="/admin/manage-accounts">/admin/manage-accounts</a>
         </li>
         <li>
           <a href="/applicant-dashboard">/applicant-dashboard</a>

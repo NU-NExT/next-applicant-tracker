@@ -59,6 +59,16 @@ export function App() {
     return <AdminReviewApplicationsPage />;
   }
 
+  const adminReviewScopedMatch = path.match(/^\/admin\/review-applications\/([^/]+)\/([^/]+)$/);
+  if (adminReviewScopedMatch) {
+    return (
+      <AdminReviewApplicationsPage
+        cycleSlug={adminReviewScopedMatch[1]}
+        positionTitleSlug={adminReviewScopedMatch[2]}
+      />
+    );
+  }
+
   if (path === "/admin/manage-accounts") {
     return <AdminManageAccountsPage />;
   }

@@ -1,140 +1,182 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  getAdminJobListings,
   getAdminOpenApplications,
   getAdminPastApplications,
-  type AdminJobListingRecord,
   type AdminApplicationRow,
 } from "../api";
+import {
+  AdminActionLink,
+  AdminEmptyState,
+  AdminErrorBanner,
+  AdminPageHeader,
+  AdminPageShell,
+  AdminSectionCard,
+} from "../components/admin/admin-ui";
 import { Header } from "../components/header";
+import { slugifyUrlValue } from "../lib/utils";
 
 export function AdminDashboardPage() {
   const token = localStorage.getItem("auth_access_token") ?? "";
+  const userName = (localStorage.getItem("auth_user_name") ?? "User").trim() || "User";
   const [openApplications, setOpenApplications] = useState<AdminApplicationRow[]>([]);
   const [pastApplications, setPastApplications] = useState<AdminApplicationRow[]>([]);
-  const [jobListings, setJobListings] = useState<AdminJobListingRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    if (!token) return;
-    void (async () => {
-      try {
-        const [open, past, listings] = await Promise.all([
-          getAdminOpenApplications(),
-          getAdminPastApplications(),
-          getAdminJobListings(token),
-        ]);
-        setOpenApplications(open);
-        setPastApplications(past);
-        setJobListings(listings);
-      } catch {
-        setOpenApplications([{ job: "Standard SWE", date_posted: "2026-03-08", date_end: "2026-04-30", total_submissions: 10 }]);
-        setPastApplications([{ job: "Job 0", date_posted: "2026-01-15", date_end: "2026-02-15" }]);
-        setJobListings([]);
-      }
-    })();
+  const loadDashboard = useCallback(async () => {
+    if (!token) {
+      setOpenApplications([]);
+      setPastApplications([]);
+      setErrorMessage("No active session found. Please sign in from /login first.");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const [open, past] = await Promise.all([getAdminOpenApplications(), getAdminPastApplications()]);
+      setOpenApplications(open);
+      setPastApplications(past);
+    } catch {
+      setOpenApplications([]);
+      setPastApplications([]);
+      setErrorMessage("Could not load dashboard data. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [token]);
 
-  const quickActions = useMemo(() => {
-    const now = new Date();
-    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
-    const hasUnpostedJobs = jobListings.some((listing) => !listing.listing_date_posted);
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+      }),
+    []
+  );
 
-    const hasPostedJobs = jobListings.some((listing) => {
-      if (!listing.listing_date_posted) return false;
-      const postedAt = new Date(listing.listing_date_posted);
-      return !Number.isNaN(postedAt.getTime()) && postedAt <= now;
-    });
+  const formatDate = (rawDate: string | undefined) => {
+    if (!rawDate) return "—";
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return rawDate;
+    return dateFormatter.format(parsed);
+  };
 
-    const hasRecentlyClosedCycle = pastApplications.some((row) => {
-      if (!row.date_end) return false;
-      const closedAt = new Date(row.date_end);
-      if (Number.isNaN(closedAt.getTime()) || closedAt > now) return false;
-      return now.getTime() - closedAt.getTime() <= ninetyDaysMs;
-    });
-
-    return {
-      canEditUnposted: hasUnpostedJobs,
-      canReviewApplicants: hasPostedJobs || hasRecentlyClosedCycle,
-    };
-  }, [jobListings, pastApplications]);
+  const buildReviewHref = (row: AdminApplicationRow) => {
+    const cycleSlug = (row.cycle_slug ?? "").trim() || "uncategorized";
+    const positionSlug = (row.position_slug ?? "").trim() || slugifyUrlValue(row.job);
+    return `/admin/review-applications/${cycleSlug}/${positionSlug}`;
+  };
 
   return (
-    <div className="min-h-screen bg-[#ececec]">
+    <>
       <Header />
+      <AdminPageShell>
+        <AdminPageHeader
+          title={`Welcome, ${userName}`}
+          subtitle=""
+          actions={
+            <>
+              <AdminActionLink href="/admin/manage-accounts">
+                Manage Users
+              </AdminActionLink>
+              <AdminActionLink href="/admin/positions">
+                Manage Positions
+              </AdminActionLink>
+            </>
+          }
+        />
 
-      <main className="mx-auto max-w-[1200px] px-4 pb-6 pt-24">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-5xl font-medium text-[#1f1f1f]">Welcome, {localStorage.getItem("auth_user_name") ?? "User"}!</h1>
-          <a
-            href="/admin/manage-accounts"
-            className="rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
+        {errorMessage ? <AdminErrorBanner message={errorMessage} onRetry={() => void loadDashboard()} /> : null}
+
+        <div className="grid gap-4">
+          <AdminSectionCard
+            title="Open Roles"
+            description="Live listings with submission volume and cycle dates."
+            bodyClassName="max-h-[460px] overflow-auto pr-1"
           >
-            Manage Users
-          </a>
+            {isLoading ? <p className="text-sm text-[#4d4d4d]">Loading open roles...</p> : null}
+            {!isLoading && openApplications.length === 0 ? (
+              <AdminEmptyState
+                title="No open roles"
+                message="Published roles will appear here once their listing window is active."
+              />
+            ) : null}
+            {!isLoading
+              ? openApplications.map((row) => {
+                  const reviewHref = buildReviewHref(row);
+                  return (
+                  <article key={`${row.listing_id ?? row.job}-${row.date_end ?? ""}`} className="rounded-md border border-[#c7c7c7] bg-[#f3f3f3] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <a
+                        href={reviewHref}
+                        className="text-lg font-semibold text-[#1f1f1f] no-underline hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6f5f] focus-visible:ring-offset-2"
+                      >
+                        {row.job}
+                      </a>
+                      <span className="rounded-full bg-[#e4f2ef] px-2 py-0.5 text-xs font-semibold text-[#1f6f5f]">
+                        {row.total_submissions ?? 0} submissions
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs text-[#4e4e4e] sm:grid-cols-2">
+                      <p>Posted: {formatDate(row.date_posted)}</p>
+                      <p>Closes: {formatDate(row.date_end)}</p>
+                    </div>
+                    <div className="mt-2">
+                      <AdminActionLink href={reviewHref} variant="secondary" className="px-3 py-1 text-xs">
+                        Review applicants
+                      </AdminActionLink>
+                    </div>
+                  </article>
+                  );
+                })
+              : null}
+          </AdminSectionCard>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
-          <section className="border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(220px,34vh,360px)]">
-            <h2 className="border-b border-[#b5b5b5] pb-1 text-3xl text-[#2d2d2d]">Open Roles</h2>
-            <div className="mt-3 space-y-3 text-[22px] text-[#2d2d2d]">
-              {openApplications.map((row) => (
-                <div key={`${row.job}-${row.date_end ?? ""}`} className="grid grid-cols-[1fr_1fr_1fr]">
-                  <a href="/admin/review-applications" className="underline">
-                    {row.job}
-                  </a>
-                  <p className="text-sm">Date posted: {row.date_posted ?? "-"}</p>
-                  <p className="text-sm">Date end: {row.date_end ?? "-"}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(220px,34vh,360px)]">
-            <h2 className="border-b border-[#b5b5b5] pb-1 text-3xl text-[#2d2d2d]">Quick Actions</h2>
-            <div className="mt-4 flex flex-col gap-3">
-              <a
-                href="/build-application"
-                className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
-              >
-                Create New Job Post
-              </a>
-              {quickActions.canEditUnposted ? (
-                <a
-                  href="/admin/edit-job-post"
-                  className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
-                >
-                  Edit Unposted Job Posts
-                </a>
-              ) : null}
-              {quickActions.canReviewApplicants ? (
-                <a
-                  href="/admin/review-applications"
-                  className="w-fit rounded-md bg-[#1f6f5f] px-4 py-2 text-lg text-white no-underline"
-                >
-                  Review Applicants
-                </a>
-              ) : null}
-            </div>
-          </section>
-        </div>
-
-        <section className="mt-5 border border-[#c7c7c7] bg-[#d8d8d8] p-4 h-[clamp(180px,26vh,280px)]">
-          <h2 className="border-b border-[#b5b5b5] pb-1 text-3xl text-[#2d2d2d]">Past Roles</h2>
-          <div className="mt-3 space-y-3 text-[22px] text-[#2d2d2d]">
-            {pastApplications.map((row) => (
-              <div key={`${row.job}-${row.date_end ?? ""}`} className="grid grid-cols-[1fr_1fr_1fr]">
-                <a href="/admin/review-applications" className="underline">
-                  {row.job}
-                </a>
-                <p>Date posted: {row.date_posted ?? "-"}</p>
-                <p>Date end: {row.date_end ?? "-"}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
+        <AdminSectionCard
+          className="mt-5"
+          title="Past Roles"
+          description="Recently closed listings available for review history."
+        >
+          {isLoading ? <p className="text-sm text-[#4d4d4d]">Loading past roles...</p> : null}
+          {!isLoading && pastApplications.length === 0 ? (
+            <AdminEmptyState
+              title="No past roles"
+              message="Closed role cycles will appear here after listing end dates pass."
+            />
+          ) : null}
+          {!isLoading
+            ? pastApplications.map((row) => {
+                const reviewHref = buildReviewHref(row);
+                return (
+                <article key={`${row.listing_id ?? row.job}-${row.date_end ?? ""}`} className="rounded-md border border-[#c7c7c7] bg-[#f3f3f3] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <a
+                      href={reviewHref}
+                      className="text-lg font-semibold text-[#1f1f1f] no-underline hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f6f5f] focus-visible:ring-offset-2"
+                    >
+                      {row.job}
+                    </a>
+                    <span className="text-xs font-medium uppercase tracking-wide text-[#5b5b5b]">Closed Cycle</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs text-[#4e4e4e] sm:grid-cols-2">
+                    <p>Posted: {formatDate(row.date_posted)}</p>
+                    <p>Closed: {formatDate(row.date_end)}</p>
+                  </div>
+                </article>
+                );
+              })
+            : null}
+        </AdminSectionCard>
+      </AdminPageShell>
+    </>
   );
 }

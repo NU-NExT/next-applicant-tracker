@@ -3,7 +3,7 @@
 #   Production:  docker compose --profile prod up --build
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.8
     container_name: application_tracker_localstack
     profiles: ["dev"]
     ports:

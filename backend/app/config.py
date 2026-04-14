@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     frontend_dev_url: str = "http://localhost:3000"
     frontend_public_url: str = "https://gateway.nunext.dev"
 
+    frontend_url: str = "http://localhost:3000"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

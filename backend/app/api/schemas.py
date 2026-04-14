@@ -36,6 +36,7 @@ class JobMetadataRead(JobMetadataBase):
 class JobListingBase(BaseModel):
     code_id: str | None = None
     position_title: str | None = None
+    date_posted: datetime | None = None
     date_end: datetime | None = None
     job: str | None = None
     description: dict[str, Any] | list | str
@@ -104,6 +105,7 @@ class JobListingCreate(JobListingBase):
 
 class JobListingUpdate(BaseModel):
     date_created: datetime | None = None
+    date_posted: datetime | None = None
     date_end: datetime | None = None
     job: str | None = None
     description: str | None = None
@@ -113,6 +115,7 @@ class JobListingUpdate(BaseModel):
 class JobListingRead(JobListingBase):
     listing_id: int
     listing_date_created: datetime
+    listing_date_posted: datetime | None = None
     questions: list[QuestionnaireQuestionRead] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
@@ -138,6 +141,7 @@ class JobListingAdminCreate(BaseModel):
     description: str = ""  # plain text; stored as {"text": "..."} in JSON col
     required_skills: str = ""
     target_start_date: datetime | None = None  # "listing_date_start" per SRS
+    listing_date_posted: datetime | None = None
     listing_date_end: datetime | None = None  # nullable; SRS doesn't require it
     nuworks_url: str | None = None
     nuworks_position_id: str | None = None
@@ -149,6 +153,7 @@ class JobListingAdminUpdate(BaseModel):
     description: str | None = None
     required_skills: str | None = None
     target_start_date: datetime | None = None
+    listing_date_posted: datetime | None = None
     listing_date_end: datetime | None = None
     nuworks_url: str | None = None
     nuworks_position_id: str | None = None
@@ -162,6 +167,7 @@ class JobListingAdminRead(BaseModel):
     description: str  # unwrapped from {"text": "..."}
     required_skills: str | None
     target_start_date: datetime | None
+    listing_date_posted: datetime | None
     listing_date_end: datetime | None
     nuworks_url: str | None
     nuworks_position_id: str | None

@@ -1,5 +1,5 @@
-from collections import defaultdict
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -13,47 +13,58 @@ router = APIRouter(prefix="/api/admin", tags=["admin-dashboard"])
 
 @router.get("/open-applications", response_model=list[dict[str, str | int]])
 def get_open_applications(db: Session = Depends(get_db)) -> list[dict[str, str | int]]:
-    submissions = (
-        db.query(ApplicationSubmission)
-        .filter(ApplicationSubmission.status.in_(["submitted", "in_review"]))
-        .order_by(ApplicationSubmission.application_submission_created_at.desc())
+    now = datetime.now(timezone.utc)
+    listings = (
+        db.query(JobListing)
+        .filter(
+            JobListing.is_active == True,  # noqa: E712
+            JobListing.listing_date_posted.isnot(None),
+            ((JobListing.listing_date_end.is_(None)) | (JobListing.listing_date_end >= now)),
+        )
+        .order_by(JobListing.listing_date_end.asc(), JobListing.listing_date_created.desc())
         .all()
     )
 
-    grouped: dict[int, dict[str, str | int]] = defaultdict(
-        lambda: {"job": "", "status": "submitted", "date_opened": "", "total_submissions": 0}
-    )
-    for submission in submissions:
-        job_listing = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
-        row = grouped[submission.job_listing_id]
-        row["job"] = job_listing.job if job_listing else f"Listing {submission.job_listing_id}"
-        row["status"] = submission.status
-        row["date_opened"] = (
-            job_listing.listing_date_created.date().isoformat()
-            if job_listing
-            else submission.application_submission_created_at.date().isoformat()
+    results: list[dict[str, str | int]] = []
+    for listing in listings:
+        total_submissions = (
+            db.query(ApplicationSubmission)
+            .filter(ApplicationSubmission.job_listing_id == listing.listing_id)
+            .count()
         )
-        row["total_submissions"] = int(row["total_submissions"]) + 1
-    return [dict(v) for v in grouped.values()]
+        results.append(
+            {
+                "job": listing.job,
+                "date_posted": listing.listing_date_posted.date().isoformat(),
+                "date_end": listing.listing_date_end.date().isoformat() if listing.listing_date_end else "",
+                "total_submissions": total_submissions,
+            }
+        )
+    return results
 
 
 @router.get("/past-applications", response_model=list[dict[str, str]])
 def get_past_applications(db: Session = Depends(get_db)) -> list[dict[str, str]]:
-    submissions = (
-        db.query(ApplicationSubmission)
-        .filter(ApplicationSubmission.status.in_(["closed", "rejected", "accepted"]))
-        .order_by(ApplicationSubmission.application_submission_created_at.desc())
+    now = datetime.now(timezone.utc)
+    listings = (
+        db.query(JobListing)
+        .filter(
+            JobListing.is_active == True,  # noqa: E712
+            JobListing.listing_date_posted.isnot(None),
+            JobListing.listing_date_end.isnot(None),
+            JobListing.listing_date_end < now,
+        )
+        .order_by(JobListing.listing_date_end.desc(), JobListing.listing_date_created.desc())
         .all()
     )
 
     results: list[dict[str, str]] = []
-    for submission in submissions:
-        job_listing = db.query(JobListing).filter(JobListing.listing_id == submission.job_listing_id).first()
+    for listing in listings:
         results.append(
             {
-                "job": job_listing.job if job_listing else f"Listing {submission.job_listing_id}",
-                "status": submission.status,
-                "date_closed": submission.application_submission_created_at.date().isoformat(),
+                "job": listing.job,
+                "date_posted": listing.listing_date_posted.date().isoformat(),
+                "date_end": listing.listing_date_end.date().isoformat() if listing.listing_date_end else "",
             }
         )
     return results

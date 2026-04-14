@@ -582,15 +582,19 @@ def seed_job_listings(
     now = _now()
     results: list[tuple[JobListing, list[QuestionnaireQuestion]]] = []
 
-    for defn in LISTING_DEFINITIONS:
+    for idx, defn in enumerate(LISTING_DEFINITIONS):
         slug = f"{SEED_CYCLE_SLUG}-{defn['slug_suffix']}"
         listing = db.query(JobListing).filter_by(listing_slug=slug).first()
+        listing_created_at = now - timedelta(days=14 - idx)
+        listing_posted_at = listing_created_at + timedelta(hours=8) if idx % 2 == 0 else None
+        listing_end_at = now + timedelta(days=1 + idx)
 
         if not listing:
             listing = JobListing(
                 code_id=f"SEED-{defn['slug_suffix'].upper()}",
-                listing_date_created=now - timedelta(days=14),
-                listing_date_end=now + timedelta(days=1),  # deadline Apr 3
+                listing_date_created=listing_created_at,
+                listing_date_posted=listing_posted_at,
+                listing_date_end=listing_end_at,
                 position_title=defn["position_title"],
                 job=defn["job"],
                 description=_blocknote(defn["description_paragraphs"]),
@@ -605,6 +609,11 @@ def seed_job_listings(
             db.flush()
             print(f"  Created listing: {listing.position_title}")
         else:
+            # Keep seed listings deterministic across reruns:
+            # balance posted + unposted roles via listing_date_posted.
+            listing.listing_date_created = listing_created_at
+            listing.listing_date_posted = listing_posted_at
+            listing.listing_date_end = listing_end_at
             print(f"  Listing already exists, skipping: {listing.position_title}")
 
         questions: list[QuestionnaireQuestion] = []
@@ -717,6 +726,9 @@ def seed_users_and_submissions(
     qt_id_to_code: dict[int, str] = {v: k for k, v in qt_map.items()}
 
     for listing, questions in listing_questions:
+        if listing.listing_date_posted is None:
+            print(f"  Skipping applicants for unposted listing: {listing.position_title}")
+            continue
         print(f"  Seeding {applicants_per_listing} applicants for: {listing.position_title}")
 
         for i in range(applicants_per_listing):

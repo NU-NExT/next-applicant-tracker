@@ -1,5 +1,5 @@
 locals {
-  is_prod = lower(var.environment) == "prod" || lower(var.environment) == "production"
+  is_cloud_env = contains(["prod", "production", "staging"], lower(var.environment))
 
   # If no explicit DATABASE_URL is provided (dev/localstack), fall back to docker-postgres defaults.
   effective_database_url = trimspace(var.database_url) != "" ? var.database_url : format(
@@ -11,6 +11,6 @@ locals {
     var.postgres_db
   )
 
-  # LocalStack endpoint should only be injected for non-prod environments.
-  effective_s3_endpoint_url = local.is_prod ? "" : var.s3_endpoint_url
+  # LocalStack endpoint should only be injected for local dev environments.
+  effective_s3_endpoint_url = local.is_cloud_env ? "" : var.s3_endpoint_url
 }

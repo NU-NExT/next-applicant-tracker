@@ -49,6 +49,7 @@ const sections: MenuSection[] = [
 export function Header() {
   const [open, setOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [identityLabel, setIdentityLabel] = useState("");
   const headerRef = useRef<HTMLElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -99,6 +100,7 @@ export function Header() {
     localStorage.removeItem("auth_user_email");
     localStorage.removeItem("auth_is_admin");
     setIsLoggedIn(false);
+    setIsAdmin(false);
     setIdentityLabel("");
     setProfileMenuOpen(false);
     window.location.href = "/";
@@ -111,6 +113,8 @@ export function Header() {
       const token = localStorage.getItem("auth_access_token");
       const loggedIn = Boolean(token);
       setIsLoggedIn(loggedIn);
+      const cachedIsAdmin = localStorage.getItem("auth_is_admin") === "true";
+      setIsAdmin(loggedIn ? cachedIsAdmin : false);
       if (!loggedIn) {
         setIdentityLabel("");
         return;
@@ -129,12 +133,15 @@ export function Header() {
         if (cancelled) return;
         const nextName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || profile.email;
         setIdentityLabel(nextName);
+        setIsAdmin(Boolean(profile.is_admin));
         localStorage.setItem("auth_user_name", nextName);
         localStorage.setItem("auth_user_email", profile.email);
+        localStorage.setItem("auth_is_admin", profile.is_admin ? "true" : "false");
       } catch {
         // If token is stale/invalid, clear auth state for consistent header behavior.
         if (cancelled) return;
         setIsLoggedIn(false);
+        setIsAdmin(false);
         setIdentityLabel("");
         localStorage.removeItem("auth_access_token");
         localStorage.removeItem("auth_id_token");
@@ -164,13 +171,15 @@ export function Header() {
     };
   }, []);
 
+  const homeHref = isLoggedIn && isAdmin ? "/admin-dashboard" : "/";
+
   return (
     <header
       ref={headerRef}
       className="fixed top-0 z-50 w-full border-b-2 border-emerald-700 bg-black text-white"
     >
       <nav aria-label="Main navigation" className="mx-auto flex h-16 items-center justify-between px-4">
-        <a href="/" className="flex items-center gap-3 no-underline">
+        <a href={homeHref} className="flex items-center gap-3 no-underline">
           <img src="/img/NExT Logo Solo.svg" alt="NExT Consulting Logo" className="h-[50px] w-auto object-contain" />
           <span className="text-[1.4rem] font-bold text-white">NExT Consulting | Apply</span>
         </a>

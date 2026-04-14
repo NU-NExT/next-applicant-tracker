@@ -389,6 +389,9 @@ def seed_reference_data(db: Session) -> dict[str, int]:
         existing = db.query(ScoreValue).filter_by(value=sv["value"]).first()
         if not existing:
             db.add(ScoreValue(value=sv["value"], label=sv["label"]))
+        elif existing.label != sv["label"]:
+            existing.label = sv["label"]
+            db.add(existing)
     db.flush()
 
     print("  Seeding application statuses …")

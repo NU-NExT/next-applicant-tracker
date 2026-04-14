@@ -1,7 +1,10 @@
 import json
+import csv
+import io
 from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.authn import ensure_admin_user, get_or_create_user_from_access_token, require_bearer_token
@@ -54,8 +57,8 @@ def _within_date_range(raw_value: str | None, start: str | None, end: str | None
     return True
 
 
-@router.get("/search", response_model=list[CandidateReviewSearchRow])
-def search_candidates(
+def _build_candidate_review_rows(
+    db: Session,
     candidate_name: str | None = None,
     northeastern_email: str | None = None,
     major: str | None = None,
@@ -67,12 +70,7 @@ def search_candidates(
     position: str | None = None,
     cycle: str | None = None,
     application_status: str | None = None,
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
 ) -> list[CandidateReviewSearchRow]:
-    token = require_bearer_token(authorization)
-    ensure_admin_user(db, token)
-
     submissions = db.query(ApplicationSubmission).order_by(ApplicationSubmission.application_submission_created_at.desc()).all()
     rows: list[CandidateReviewSearchRow] = []
     for submission in submissions:
@@ -128,6 +126,117 @@ def search_candidates(
             )
         )
     return rows
+
+
+@router.get("/search", response_model=list[CandidateReviewSearchRow])
+def search_candidates(
+    candidate_name: str | None = None,
+    northeastern_email: str | None = None,
+    major: str | None = None,
+    college: str | None = None,
+    grad_start: str | None = None,
+    grad_end: str | None = None,
+    coop_number: str | None = None,
+    year_grade_level: str | None = None,
+    position: str | None = None,
+    cycle: str | None = None,
+    application_status: str | None = None,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[CandidateReviewSearchRow]:
+    token = require_bearer_token(authorization)
+    ensure_admin_user(db, token)
+    return _build_candidate_review_rows(
+        db=db,
+        candidate_name=candidate_name,
+        northeastern_email=northeastern_email,
+        major=major,
+        college=college,
+        grad_start=grad_start,
+        grad_end=grad_end,
+        coop_number=coop_number,
+        year_grade_level=year_grade_level,
+        position=position,
+        cycle=cycle,
+        application_status=application_status,
+    )
+
+
+@router.get("/export.csv")
+def export_candidate_csv(
+    candidate_name: str | None = None,
+    northeastern_email: str | None = None,
+    major: str | None = None,
+    college: str | None = None,
+    grad_start: str | None = None,
+    grad_end: str | None = None,
+    coop_number: str | None = None,
+    year_grade_level: str | None = None,
+    position: str | None = None,
+    cycle: str | None = None,
+    application_status: str | None = None,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    token = require_bearer_token(authorization)
+    ensure_admin_user(db, token)
+
+    rows = _build_candidate_review_rows(
+        db=db,
+        candidate_name=candidate_name,
+        northeastern_email=northeastern_email,
+        major=major,
+        college=college,
+        grad_start=grad_start,
+        grad_end=grad_end,
+        coop_number=coop_number,
+        year_grade_level=year_grade_level,
+        position=position,
+        cycle=cycle,
+        application_status=application_status,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "submission_id",
+            "candidate_name",
+            "candidate_email",
+            "major",
+            "graduation_date",
+            "coop_number",
+            "year_grade_level",
+            "college",
+            "position_applied_for",
+            "cycle",
+            "application_status",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.submission_id,
+                row.candidate_name,
+                row.candidate_email,
+                row.major or "",
+                row.graduation_date or "",
+                row.coop_number or "",
+                row.year_grade_level or "",
+                row.college or "",
+                row.position_applied_for,
+                row.cycle or "",
+                row.application_status,
+            ]
+        )
+
+    content = output.getvalue()
+    output.close()
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="candidate-review-export.csv"'},
+    )
 
 
 @router.get("/applications/{submission_id}", response_model=CandidateReviewDetail)

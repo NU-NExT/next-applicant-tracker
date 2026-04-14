@@ -11,13 +11,14 @@ export type ApplicationRecord = {
 };
 
 export type JobDataRecord = {
-  id: number;
+  metadata_id?: number;
+  id?: number;
   release_date: string;
   end_date: string;
-  semester: string;
-  role: string;
+  semester?: string | null;
+  role?: string | null;
   pay: number;
-  description: string;
+  description?: string | null;
 };
 
 export type JobListingRecord = {
@@ -290,6 +291,11 @@ export async function getJobData(): Promise<JobDataRecord[]> {
   return response.data;
 }
 
+export async function getJobDataById(jobId: number): Promise<JobDataRecord> {
+  const response = await apiClient.get<JobDataRecord>(`/api/job-data/${jobId}`);
+  return response.data;
+}
+
 export async function getJobListings(): Promise<JobListingRecord[]> {
   const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
   return response.data;
@@ -512,6 +518,18 @@ export async function addCandidateReviewComment(
     { comment },
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
+  return response.data;
+}
+
+export async function exportCandidateReviewsCsv(
+  accessToken: string,
+  filters: Record<string, string>
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>("/api/admin/review/export.csv", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: filters,
+    responseType: "blob",
+  });
   return response.data;
 }
 

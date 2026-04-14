@@ -1,20 +1,12 @@
-resource "random_string" "cognito_domain_suffix" {
-  length  = 6
-  lower   = true
-  upper   = false
-  numeric = true
-  special = false
-}
-
 locals {
-  cognito_hosted_ui_domain_prefix = substr(
-    "${var.cognito_domain_prefix}-${random_string.cognito_domain_suffix.result}",
-    0,
-    63
-  )
+  use_existing_cognito = trimspace(var.cognito_existing_user_pool_id) != "" && trimspace(var.cognito_existing_app_client_id) != ""
+
+  cognito_domain_prefix_effective = trimspace(var.cognito_existing_domain_prefix) != "" ? var.cognito_existing_domain_prefix : var.cognito_domain_prefix
 }
 
 resource "aws_cognito_user_pool" "main" {
+  count = local.use_existing_cognito ? 0 : 1
+
   name = "${local.name_prefix}-user-pool"
 
   mfa_configuration = "OFF"
@@ -51,8 +43,10 @@ resource "aws_cognito_user_pool" "main" {
 }
 
 resource "aws_cognito_user_pool_client" "app_client" {
+  count = local.use_existing_cognito ? 0 : 1
+
   name         = "${local.name_prefix}-app-client"
-  user_pool_id = aws_cognito_user_pool.main.id
+  user_pool_id = aws_cognito_user_pool.main[0].id
 
   generate_secret               = false
   prevent_user_existence_errors = "ENABLED"
@@ -82,12 +76,21 @@ resource "aws_cognito_user_pool_client" "app_client" {
 }
 
 resource "aws_cognito_user_pool_domain" "hosted_ui" {
-  domain       = local.cognito_hosted_ui_domain_prefix
-  user_pool_id = aws_cognito_user_pool.main.id
+  count = local.use_existing_cognito ? 0 : 1
+
+  domain       = local.cognito_domain_prefix_effective
+  user_pool_id = aws_cognito_user_pool.main[0].id
 }
 
 resource "aws_cognito_user_group" "admin" {
-  user_pool_id = aws_cognito_user_pool.main.id
+  count = local.use_existing_cognito ? 0 : 1
+
+  user_pool_id = aws_cognito_user_pool.main[0].id
   name         = var.cognito_admin_group_name
   description  = "Administrators created only by existing ADMIN users."
+}
+
+locals {
+  cognito_user_pool_id  = local.use_existing_cognito ? var.cognito_existing_user_pool_id : aws_cognito_user_pool.main[0].id
+  cognito_app_client_id = local.use_existing_cognito ? var.cognito_existing_app_client_id : aws_cognito_user_pool_client.app_client[0].id
 }

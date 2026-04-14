@@ -536,3 +536,55 @@ export async function deleteFieldOption(optionId: number, accessToken: string): 
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
+
+export type ConsentVersionRecord = {
+  consent_version_id: number;
+  consent_text: string;
+  consent_version_created_at: string;
+};
+
+export async function getLatestConsent(): Promise<ConsentVersionRecord> {
+  const response = await apiClient.get<ConsentVersionRecord>("/api/consent/latest");
+  return response.data;
+}
+
+export async function createConsentVersion(consentText: string): Promise<ConsentVersionRecord> {
+  const response = await apiClient.post<ConsentVersionRecord>("/api/consent/", { consent_text: consentText });
+  return response.data;
+}
+
+export type ApplicationConsentRecord = {
+  application_consent_id: number;
+  user_id: number;
+  job_listing_id: number;
+  application_submission_id: number | null;
+  consented_at: string;
+  consent_text: string;
+  is_active: boolean;
+};
+
+export async function recordApplicationConsent(
+  jobListingId: number,
+  consentText: string,
+  accessToken: string,
+  applicationSubmissionId?: number,
+): Promise<ApplicationConsentRecord> {
+  const response = await apiClient.post<ApplicationConsentRecord>(
+    "/api/consent/application-consent",
+    { job_listing_id: jobListingId, consent_text: consentText, application_submission_id: applicationSubmissionId ?? null },
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  return response.data;
+}
+
+export async function deactivateApplicationConsent(
+  consentId: number,
+  accessToken: string,
+): Promise<ApplicationConsentRecord> {
+  const response = await apiClient.patch<ApplicationConsentRecord>(
+    `/api/consent/application-consent/${consentId}/deactivate`,
+    {},
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  return response.data;
+}

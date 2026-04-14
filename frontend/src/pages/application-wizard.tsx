@@ -332,6 +332,8 @@ export function ApplicationWizardPage({ positionCode, jobId }: ApplicationWizard
               dropdownFallbacks={dropdownFallbacks}
               onSubmit={handleSubmit}
               onBack={() => setStep(3)}
+              jobListingId={resolvedJobListingId}
+              accessToken={accessToken}
             />
           )}
         </section>

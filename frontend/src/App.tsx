@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AdminApplicantStatsPage } from "./pages/admin-applicant-stats";
+import { AdminConsentPage } from "./pages/admin-consent";
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminEditJobPostPage } from "./pages/admin-edit-job-post";
 import { AdminReviewApplicationsPage } from "./pages/admin-review-applications";
@@ -60,6 +61,10 @@ export function App() {
 
   if (path === "/admin/review-applications") {
     return <AdminReviewApplicationsPage />;
+  }
+
+  if (path === "/admin/consent") {
+    return <AdminConsentPage />;
   }
 
   if (path === "/applicant-dashboard") {

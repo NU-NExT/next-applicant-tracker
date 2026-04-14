@@ -97,6 +97,7 @@ export function BuildApplicationPage() {
   const [activeTabId, setActiveTabId] = useState<number>(1);
   const [draggedTabId, setDraggedTabId] = useState<number | null>(null);
   const [job, setJob] = useState("Standard SWE");
+  const [datePostedStart, setDatePostedStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -187,8 +188,12 @@ export function BuildApplicationPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!job || !dateEnd) {
+    if (!job || !datePostedStart || !dateEnd) {
       setStatusMessage("Fill required fields.");
+      return;
+    }
+    if (new Date(dateEnd) < new Date(datePostedStart)) {
+      setStatusMessage("Job end must be after job post start.");
       return;
     }
     if (!window.confirm("Publish this listing now?")) return;
@@ -198,6 +203,7 @@ export function BuildApplicationPage() {
     try {
       await createJobListing({
         date_created: new Date().toISOString(),
+        date_posted: new Date(datePostedStart).toISOString(),
         date_end: new Date(dateEnd).toISOString(),
         position_title: job,
         job,
@@ -263,7 +269,7 @@ export function BuildApplicationPage() {
         <h1 className="mb-2 text-4xl font-semibold text-[#1f1f1f]">Build Application</h1>
 
         <form onSubmit={onSubmit} className="rounded-md border border-[#c7c7c7] bg-white p-5">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-[#333]">Job title</span>
               <input
@@ -274,7 +280,16 @@ export function BuildApplicationPage() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-[#333]">Date end</span>
+              <span className="font-medium text-[#333]">Job post start</span>
+              <input
+                type="datetime-local"
+                value={datePostedStart}
+                onChange={(e) => setDatePostedStart(e.target.value)}
+                className="rounded border border-[#bfbfbf] px-3 py-2"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-[#333]">Job end</span>
               <input
                 type="datetime-local"
                 value={dateEnd}

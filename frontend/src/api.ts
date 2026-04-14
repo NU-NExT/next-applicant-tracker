@@ -25,6 +25,7 @@ export type JobListingRecord = {
   id: number;
   code_id?: string | null;
   date_created: string;
+  date_posted?: string | null;
   date_end: string;
   position_title?: string;
   position_code?: string;
@@ -54,6 +55,7 @@ export type JobListingRecord = {
 
 export type JobListingCreatePayload = {
   date_created: string;
+  date_posted?: string | null;
   date_end: string;
   code_id?: string;
   position_title?: string;
@@ -106,9 +108,8 @@ export type RepositoryRequestPayload = {
 
 export type AdminApplicationRow = {
   job: string;
-  status: string;
-  date_opened?: string;
-  date_closed?: string;
+  date_posted?: string;
+  date_end?: string;
   total_submissions?: number;
 };
 
@@ -234,6 +235,31 @@ export type AuthDeactivateAdminPayload = {
   email: string;
 };
 
+export type AuthSetUserRolePayload = {
+  email: string;
+  is_admin: boolean;
+};
+
+export type AuthSetUserActivePayload = {
+  email: string;
+  is_active: boolean;
+};
+
+export type AuthDeleteUserPayload = {
+  email: string;
+};
+
+export type AdminManagedUser = {
+  user_id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  consented_at?: string | null;
+  user_metadata: Record<string, unknown>;
+};
+
 export type CandidateReviewSearchRow = {
   submission_id: number;
   candidate_name: string;
@@ -277,7 +303,10 @@ export type CandidateReviewDetail = {
   comments: ApplicationReviewCommentRecord[];
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const APP_ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT ?? "development").toLowerCase();
+const IS_CLOUD_ENV = APP_ENVIRONMENT === "production" || APP_ENVIRONMENT === "staging";
+const DEFAULT_API_BASE_URL = IS_CLOUD_ENV ? "https://api.gateway.nunext.dev" : "http://localhost:8000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim() || DEFAULT_API_BASE_URL;
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
@@ -298,6 +327,11 @@ export async function getJobDataById(jobId: number): Promise<JobDataRecord> {
 
 export async function getJobListings(): Promise<JobListingRecord[]> {
   const response = await apiClient.get<JobListingRecord[]>("/api/job-listings");
+  return response.data;
+}
+
+export async function getJobListing(jobListingId: number): Promise<JobListingRecord> {
+  const response = await apiClient.get<JobListingRecord>(`/api/job-listings/${jobListingId}`);
   return response.data;
 }
 
@@ -426,6 +460,43 @@ export async function authDeactivateAdmin(
   accessToken: string
 ): Promise<{ message: string }> {
   const response = await apiClient.post<{ message: string }>("/api/auth/admin/deactivate", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authListUsers(accessToken: string): Promise<AdminManagedUser[]> {
+  const response = await apiClient.get<AdminManagedUser[]>("/api/auth/admin/users", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authSetUserRole(
+  payload: AuthSetUserRolePayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/set-role", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authSetUserActive(
+  payload: AuthSetUserActivePayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/set-active", payload, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return response.data;
+}
+
+export async function authDeleteUser(
+  payload: AuthDeleteUserPayload,
+  accessToken: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>("/api/auth/admin/delete-user", payload, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return response.data;
@@ -565,6 +636,7 @@ export type AdminJobListingRecord = {
   description: string;
   required_skills: string | null;
   target_start_date: string | null;
+  listing_date_posted: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
   nuworks_position_id: string | null;
@@ -581,6 +653,7 @@ export type AdminJobListingCreatePayload = {
   description: string;
   required_skills?: string;
   target_start_date: string | null;
+  listing_date_posted?: string | null;
   listing_date_end: string | null;
   nuworks_url: string | null;
   nuworks_position_id: string | null;

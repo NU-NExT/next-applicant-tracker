@@ -41,6 +41,7 @@ class JobListing(Base):
     listing_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     code_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     listing_date_created: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    listing_date_posted: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     listing_date_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     position_title: Mapped[str] = mapped_column(String(128), nullable=False)
     job: Mapped[str] = mapped_column(String(128), nullable=False)

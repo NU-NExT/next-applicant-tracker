@@ -49,8 +49,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "S3_BUCKET_RESUMES", value = aws_s3_bucket.resumes.bucket },
         { name = "S3_BUCKET_TRANSCRIPTS", value = aws_s3_bucket.transcripts.bucket },
         { name = "S3_BUCKET_FILES", value = aws_s3_bucket.files.bucket },
-        { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.main.id },
-        { name = "COGNITO_APP_CLIENT_ID", value = aws_cognito_user_pool_client.app_client.id },
+        { name = "COGNITO_USER_POOL_ID", value = local.cognito_user_pool_id },
+        { name = "COGNITO_APP_CLIENT_ID", value = local.cognito_app_client_id },
         { name = "COGNITO_ADMIN_GROUP_NAME", value = var.cognito_admin_group_name },
       ]
       logConfiguration = {
@@ -121,7 +121,7 @@ resource "aws_ecs_service" "backend" {
     container_port   = 8000
   }
 
-  depends_on = [aws_lb_listener.backend_http]
+  depends_on = [aws_lb_listener.app_https]
   tags       = local.common_tags
 }
 
@@ -144,6 +144,6 @@ resource "aws_ecs_service" "frontend" {
     container_port   = 3000
   }
 
-  depends_on = [aws_lb_listener.frontend_http]
+  depends_on = [aws_lb_listener.app_https]
   tags       = local.common_tags
 }
